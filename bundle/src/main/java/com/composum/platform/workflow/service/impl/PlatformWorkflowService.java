@@ -1,8 +1,8 @@
-package com.composum.platform.workflow.impl;
+package com.composum.platform.workflow.service.impl;
 
-import com.composum.platform.workflow.api.GenericProperties;
-import com.composum.platform.workflow.api.WorkflowTask;
-import com.composum.platform.workflow.api.WorkflowService;
+import com.composum.platform.workflow.service.GenericProperties;
+import com.composum.platform.workflow.service.WorkflowTask;
+import com.composum.platform.workflow.service.WorkflowService;
 import com.google.gson.stream.JsonReader;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.JcrConstants;

@@ -1,4 +1,4 @@
-package com.composum.platform.workflow.api;
+package com.composum.platform.workflow.service;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;

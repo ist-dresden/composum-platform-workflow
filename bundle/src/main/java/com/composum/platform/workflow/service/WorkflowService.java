@@ -1,4 +1,4 @@
-package com.composum.platform.workflow.api;
+package com.composum.platform.workflow.service;
 
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.event.jobs.Job;
