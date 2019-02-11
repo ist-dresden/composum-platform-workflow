@@ -1,15 +1,17 @@
 package com.composum.platform.workflow.service.impl;
 
-import com.composum.platform.workflow.service.GenericProperties;
-import com.composum.platform.workflow.service.WorkflowTask;
+import com.composum.platform.workflow.model.WorkflowTask;
+import com.composum.platform.workflow.model.WorkflowTaskInstance;
+import com.composum.platform.workflow.model.WorkflowTaskTemplate;
 import com.composum.platform.workflow.service.WorkflowService;
-import com.google.gson.stream.JsonReader;
+import com.composum.sling.core.BeanContext;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.event.jobs.Job;
 import org.apache.sling.event.jobs.JobManager;
 import org.osgi.framework.BundleContext;
@@ -26,10 +28,9 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 
@@ -44,7 +45,14 @@ public class PlatformWorkflowService implements WorkflowService {
 
     private static final Logger LOG = LoggerFactory.getLogger(PlatformWorkflowService.class);
 
-    public static final String PN_TASK = "wf.task";
+    /** the task instance reference job property name */
+    String PN_TASK_INSTANCE_PATH = "wf.task.instance.path";
+
+    /** the job property 'comment' */
+    String PN_TASK_COMMENT = "wf.task.job.comment";
+
+    /** the job property 'data' prefix */
+    String PN_TASK_DATA = "wf.task.job.comment";
 
     @ObjectClassDefinition(
             name = "Composum Platform Workflow Configuration"
@@ -70,6 +78,8 @@ public class PlatformWorkflowService implements WorkflowService {
         String shared_path() default "shared";
     }
 
+    protected static final Gson GSON = new GsonBuilder().create();
+
     @Reference
     protected ResourceResolverFactory resolverFactory;
 
@@ -88,30 +98,59 @@ public class PlatformWorkflowService implements WorkflowService {
      * loads a task (template) from the repository
      *
      * @param resolver the user/job session
-     * @param path     the repository path ('inbox' or an initial path from an app)
+     * @param tenantId the related tenant (must be selected by the user)
+     */
+    @Nonnull
+    public Iterator<WorkflowTaskInstance> findTasks(@Nonnull final ResourceResolver resolver, @Nullable final String tenantId) {
+        ArrayList<WorkflowTaskInstance> tasks = new ArrayList<>();
+        Resource folder = getInstanceFolder(resolver, tenantId);
+        if (folder != null) {
+            for (Resource entry : folder.getChildren()) {
+                if (JcrConstants.NT_FILE.equals(entry.getValueMap().get(JcrConstants.JCR_PRIMARYTYPE))) {
+                    WorkflowTaskInstance task = getInstance(resolver, entry.getPath());
+                    tasks.add(task);
+                }
+            }
+        }
+        return tasks.iterator();
+    }
+
+    /**
+     * loads a task instance from the repository
+     *
+     * @param resolver the user/job session
+     * @param path     the repository path
      */
     @Override
     @Nullable
-    public WorkflowTask getTask(@Nonnull final ResourceResolver resolver, @Nonnull final String path) {
-        WorkflowTask task = null;
-        Resource template = resolver.getResource(path);
-        if (template != null) {
-            ValueMap values = template.getValueMap();
-            if (JcrConstants.NT_FILE.equals(values.get(JcrConstants.JCR_PRIMARYTYPE, ""))) {
-                template = template.getChild(JcrConstants.JCR_CONTENT);
-                values = template != null ? template.getValueMap() : null;
-            }
-            if (values != null) {
-                try (InputStream script = values.get(JcrConstants.JCR_DATA, InputStream.class)) {
-                    if (script != null) {
-                        try (InputStreamReader stream = new InputStreamReader(script, StandardCharsets.UTF_8);
-                             JsonReader reader = new JsonReader(stream)) {
-                            task = new WorkflowTask(new GenericProperties(reader));
-                        }
-                    }
-                } catch (Exception ex) {
-                    LOG.error(ex.getMessage(), ex);
-                }
+    public WorkflowTaskInstance getInstance(@Nonnull final ResourceResolver resolver, @Nonnull final String path) {
+        return getInstance(resolver, path, WorkflowTaskInstance.class);
+    }
+
+    /**
+     * loads a task template from the repository
+     *
+     * @param resolver the user/job session
+     * @param path     the repository path to the template resource
+     */
+    @Override
+    @Nullable
+    public WorkflowTaskTemplate getTemplate(@Nonnull final ResourceResolver resolver, @Nonnull final String path) {
+        return getInstance(resolver, path, WorkflowTaskTemplate.class);
+    }
+
+    protected <T extends WorkflowTask> T getInstance(@Nonnull final ResourceResolver resolver,
+                                                     @Nonnull final String path,
+                                                     @Nonnull Class<T> type) {
+        T task = null;
+        Resource resource = resolver.getResource(path);
+        if (resource != null) {
+            try {
+                task = (T) type.newInstance();
+                task.initialize(new BeanContext.Service(resolver), resource);
+            } catch (Exception ex) {
+                LOG.error(ex.getMessage(), ex);
+                task = null;
             }
         }
         return task;
@@ -125,11 +164,11 @@ public class PlatformWorkflowService implements WorkflowService {
      */
     @Override
     @Nullable
-    public WorkflowTask getTask(@Nonnull final ResourceResolver resolver, @Nonnull final Job job) {
-        WorkflowTask task = null;
-        String json = (String) job.getProperty(PN_TASK);
-        if (StringUtils.isNotBlank(json)) {
-            task = new WorkflowTask(new GenericProperties(json));
+    public WorkflowTaskInstance getInstance(@Nonnull final ResourceResolver resolver, @Nonnull final Job job) {
+        WorkflowTaskInstance task = null;
+        String path = (String) job.getProperty(PN_TASK_INSTANCE_PATH);
+        if (StringUtils.isNotBlank(path)) {
+            task = getInstance(resolver, path);
         }
         return task;
     }
@@ -137,67 +176,72 @@ public class PlatformWorkflowService implements WorkflowService {
     /**
      * builds a new (the next) task (for the 'inbox')
      *
-     * @param resolver     the user session
-     * @param previousTask the task of the job which has triggered the new task (optional)
-     * @param nextTask     the template of the new task
+     * @param resolver         the user session
+     * @param tenantId         the related tenant (selected by the user or inherited from the previous task)
+     * @param previousTask     the path of the previous instance which has triggered the new task (optional)
+     * @param nextTaskTemplate the path of the template of the new task
      */
     @Override
     public void addTask(@Nonnull final ResourceResolver resolver, @Nullable final String tenantId,
-                        @Nullable final WorkflowTask previousTask, @Nonnull final WorkflowTask nextTask) {
-        Map<String, Object> properties = nextTask.getProperties();
-        if (previousTask != null) {
-            // merge properties of the previous task...
-            previousTask.getProperties();
-        }
-        // store the task in the 'inbox'...
-        Resource folder = getInstanceFolder(resolver, tenantId);
-        if (folder != null) {
-            try (ResourceResolver serviceResolver = resolverFactory.getServiceResourceResolver(null)) {
-                Resource taskFile = serviceResolver.create(folder, UUID.randomUUID().toString(), properties);
-                serviceResolver.create(taskFile, JcrConstants.JCR_CONTENT, properties);
-                if (LOG.isInfoEnabled()) {
-                    LOG.info("addTask(): {}", taskFile.getPath());
+                        @Nullable final String previousTask, @Nonnull final String nextTaskTemplate) {
+        final WorkflowTaskTemplate template = getInstance(resolver, nextTaskTemplate, WorkflowTaskTemplate.class);
+        if (template != null) {
+            Map<String, Object> templateProperties = new HashMap<>();
+            templateProperties.put(WorkflowTaskInstance.PN_TOPIC, template.getTopic());
+            templateProperties.put(WorkflowTaskInstance.PN_CATEGORY, template.getCategory());
+            templateProperties.put(WorkflowTaskInstance.PN_ASSIGNEE, template.getPath());
+            templateProperties.put(WorkflowTaskInstance.PN_TEMPLATE, template.getPath());
+            try (final ResourceResolver serviceResolver = resolverFactory.getServiceResourceResolver(null)) {
+                WorkflowTaskInstance task = StringUtils.isNotBlank(previousTask) ? getInstance(resolver, previousTask) : null;
+                if (task == null) {
+                    // store the task in the 'inbox'...
+                    final Resource folder = getInstanceFolder(resolver, tenantId);
+                    if (folder != null) {
+                        Resource resource = serviceResolver.create(folder, UUID.randomUUID().toString(), templateProperties);
+                        task = new WorkflowTaskInstance();
+                        task.initialize(new BeanContext.Service(resolver), resource);
+                        if (LOG.isInfoEnabled()) {
+                            LOG.info("addTask({}): {}", task.getPath(), task.getTopic());
+                        }
+                    }
+                } else {
+                    if (LOG.isInfoEnabled()) {
+                        LOG.info("nextTask({}): {}", task.getPath(), task.getTopic());
+                    }
                 }
             } catch (Exception ex) {
                 LOG.error(ex.getMessage(), ex);
             }
-        }
-    }
-
-    /**
-     * creates a job for execution of the a task template (triggered by a user or another job)
-     *
-     * @param resolver     the user/job session
-     * @param instancePath the path to the template ('inbox' entry)
-     * @param comment      an optional comment added to the task
-     */
-    @Override
-    public void runTask(@Nonnull final ResourceResolver resolver,
-                        @Nonnull final String instancePath, @Nullable final String comment) {
-        WorkflowTask task = getTask(resolver, instancePath);
-        if (task != null) {
-            runTask(resolver, task, comment);
-            // remove task if it is an instance of the store
-            removeTask(resolver, instancePath);
         } else {
-            LOG.error("workflow instance not resolvable: '{}'", instancePath);
+            LOG.error("task template not available: '{}'", nextTaskTemplate);
         }
     }
 
     /**
-     * creates a job for execution of the a task template (triggered by a user or another job)
+     * creates a job for execution of the a task instance (triggered by a user or another job)
      *
      * @param resolver     the user/job session
-     * @param taskTemplate the template to execute
+     * @param taskInstance the path to the task instance ('inbox' resource)
      * @param comment      an optional comment added to the task
+     * @param data         the values for the task to execute (for the job; provided by the task dialog)
      */
     @Override
-    public void runTask(@Nonnull final ResourceResolver resolver,
-                        @Nonnull final WorkflowTask taskTemplate, @Nullable final String comment) {
-        Map<String, Object> jobProperties = new HashMap<>();
-        jobProperties.put(PN_TASK, taskTemplate.getProperties().toString());
-        // add comment...
-        jobManager.addJob(taskTemplate.getTopic(), jobProperties);
+    public void runTask(@Nonnull ResourceResolver resolver,
+                        @Nonnull String taskInstance, @Nullable Map<String, Object> data, @Nullable String comment) {
+        WorkflowTaskInstance task = getInstance(resolver, taskInstance);
+        if (task != null) {
+            Map<String, Object> jobProperties = new HashMap<>();
+            jobProperties.put(PN_TASK_INSTANCE_PATH, task.getPath());
+            if (data != null && !data.isEmpty()) {
+                jobProperties.put(PN_TASK_DATA, GSON.toJson(data));
+            }
+            if (StringUtils.isNotBlank(comment)) {
+                jobProperties.put(PN_TASK_COMMENT, comment);
+            }
+            jobManager.addJob(task.getTopic(), jobProperties);
+        } else {
+            LOG.error("task instance not available: '{}'", taskInstance);
+        }
     }
 
     /**
@@ -208,21 +252,18 @@ public class PlatformWorkflowService implements WorkflowService {
      */
     public void removeTask(@Nonnull final ResourceResolver resolver,
                            @Nonnull final String instancePath) {
-        if (instancePath.startsWith(config.workflow_root())) {
-            // remove task if it is an instance of the store only
-            try (ResourceResolver serviceResolver = resolverFactory.getServiceResourceResolver(null)) {
-                Resource taskFile = serviceResolver.getResource(instancePath);
-                if (taskFile != null) {
-                    if (LOG.isInfoEnabled()) {
-                        LOG.info("removeTask(): {}", instancePath);
-                    }
-                    serviceResolver.delete(taskFile);
-                } else {
-                    LOG.error("removeTask({}) - task not available!", instancePath);
+        try (ResourceResolver serviceResolver = resolverFactory.getServiceResourceResolver(null)) {
+            Resource taskFile = serviceResolver.getResource(instancePath);
+            if (taskFile != null) {
+                if (LOG.isInfoEnabled()) {
+                    LOG.info("removeTask(): {}", instancePath);
                 }
-            } catch (Exception ex) {
-                LOG.error(ex.getMessage(), ex);
+                serviceResolver.delete(taskFile);
+            } else {
+                LOG.error("removeTask({}) - task not available!", instancePath);
             }
+        } catch (Exception ex) {
+            LOG.error(ex.getMessage(), ex);
         }
     }
 
