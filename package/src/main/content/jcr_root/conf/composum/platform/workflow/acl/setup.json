@@ -5,6 +5,7 @@
     "acl": [
       {
         "principal": "composum-platform-users",
+        "groupPath": "composum/platform",
         "acl": [
           {
             "allow": true,
@@ -17,6 +18,7 @@
       },
       {
         "principal": "composum-platform-administrators",
+        "groupPath": "composum/platform",
         "acl": [
           {
             "allow": true,
