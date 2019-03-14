@@ -1,0 +1,71 @@
+.composum-platform-workflow {
+
+    &_inbox {
+
+        &-table {
+
+            .table {
+                font-size: 14px;
+
+                th, td {
+                    vertical-align: top;
+
+                    p:last-child {
+                        margin-bottom: 0;
+                    }
+                }
+            }
+        }
+
+        &-task {
+            cursor: pointer;
+        }
+    }
+}
+
+/* composum core console */
+
+.console .detail-view .detail-content {
+
+    .composum-platform-workflow {
+
+        &_inbox {
+
+            &-table {
+
+                .table {
+                    font-size: 14px;
+
+                    tbody {
+                        position: absolute;
+                        top: 71px;
+                        left: 0;
+                        right: 0;
+                        bottom: 42px;
+                        overflow: auto;
+                    }
+
+                    tr {
+                        display: inline-table;
+                        width: 100%;
+                    }
+
+                    th, td {
+
+                        &.date {
+                            width: 130px;
+                        }
+
+                        &.title {
+                            width: 200px;
+                        }
+
+                        &.assignee {
+                            width: 200px;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

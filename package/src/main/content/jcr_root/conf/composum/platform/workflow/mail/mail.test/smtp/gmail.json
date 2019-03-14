@@ -1,0 +1,10 @@
+{
+
+  "clientId": "",
+  "clientSecret": "",
+  "header": {
+    "mail.smtp.auth": true,
+    "mail.smtp.starttls.enable": true,
+    "mail.smtp.auth.mechanisms": "XOAUTH2"
+  }
+}

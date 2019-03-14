@@ -27,18 +27,7 @@
     ]
   },
   {
-    "path": "/var/composum/workflow/shared",
-    "jcr:primaryType": "sling:Folder",
-    "acl": [
-      {
-        "principal": "composum-platform-users",
-        "acl": [
-          {
-            "allow": true,
-            "privileges": "jcr:read"
-          }
-        ]
-      }
-    ]
+    "path": "/var/composum/workflow/platform",
+    "jcr:primaryType": "sling:Folder"
   }
 ]
