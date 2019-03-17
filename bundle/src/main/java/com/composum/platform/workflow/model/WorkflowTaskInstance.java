@@ -5,6 +5,8 @@ import com.composum.sling.core.BeanContext;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.Resource;
 
+import javax.annotation.Nonnull;
+
 public class WorkflowTaskInstance extends WorkflowTask {
 
     public enum State {pending, running, finished}
@@ -14,6 +16,12 @@ public class WorkflowTaskInstance extends WorkflowTask {
     public static final String PN_PREVIOUS = "previous";
     public static final String PN_NEXT = "next";
     public static final String PN_CHOSEN_OPTION = "chosenOption";
+    public static final String PN_EXECUTED = "executed";
+    public static final String PN_EXECUTED_BY = PN_EXECUTED + "By";
+    public static final String PN_CANCELLED = "cancelled";
+    public static final String PN_CANCELLED_BY = PN_CANCELLED + "By";
+    public static final String PN_FINISHED = "finished";
+    public static final String PN_FINISHED_BY = PN_FINISHED + "By";
 
     private transient State state;
     private transient WorkflowTaskTemplate template;
@@ -39,7 +47,7 @@ public class WorkflowTaskInstance extends WorkflowTask {
 
     public State getState() {
         if (state == null) {
-            state = getService().getState(this);
+            state = getService().getState(context, getName());
         }
         return state;
     }
@@ -54,6 +62,16 @@ public class WorkflowTaskInstance extends WorkflowTask {
 
     public String getInitiator() {
         return getProperty(PN_INITIATOR, "");
+    }
+
+    @Nonnull
+    public String[] getCategory() {
+        return getTemplate().getCategory();
+    }
+
+    @Nonnull
+    public String getTopic() {
+        return getTemplate().getTopic();
     }
 
     public WorkflowTaskInstance getPreviousTask() {

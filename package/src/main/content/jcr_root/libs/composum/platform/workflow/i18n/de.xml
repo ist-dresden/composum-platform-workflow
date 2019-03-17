@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jcr:root xmlns:sling="http://sling.apache.org/jcr/sling/1.0" xmlns:jcr="http://www.jcp.org/jcr/1.0"
+        jcr:language="de"
+        jcr:mixinTypes="[mix:language]"
+        jcr:primaryType="sling:Folder"
+        sling:basename="composum-platform-workflow">
+
+    <servlet jcr:primaryType="sling:Folder">
+
+        <success jcr:primaryType="sling:MessageEntry"
+                sling:key="Success" sling:message="Erfolg"/>
+        <task-created jcr:primaryType="sling:MessageEntry"
+                sling:key="task created" sling:message="Task erzeugt"/>
+        <task-not-created jcr:primaryType="sling:MessageEntry"
+                sling:key="task not created" sling:message="Task nicht erzeugt"/>
+        <failed jcr:primaryType="sling:MessageEntry"
+                sling:key="Failed" sling:message="Fehlgeschlagen"/>
+        <failed-task-job jcr:primaryType="sling:MessageEntry"
+                sling:key="task job creation failed" sling:message="der Start des Jobs ist fehlgeschlagen"/>
+        <task-option jcr:primaryType="sling:MessageEntry"
+                sling:key="task option" sling:message="Task-Option"/>
+        <default-option jcr:primaryType="sling:MessageEntry"
+                sling:key="default option used" sling:message="dfie Standard-Option wurde verwendet"/>
+        <invalid-option jcr:primaryType="sling:MessageEntry"
+                sling:key="invalid option" sling:message="fehlerhafte Option"/>
+        <invalid-task jcr:primaryType="sling:MessageEntry"
+                sling:key="invalid task" sling:message="fehlerhafte Task"/>
+        <no-task-at jcr:primaryType="sling:MessageEntry"
+                sling:key="no task found at" sling:message="keine Task gefunden unter"/>
+        <can-not-forward jcr:primaryType="sling:MessageEntry"
+                sling:key="can't forward request" sling:message="Request-Weiterleitung nicht möglich"/>
+
+    </servlet>
+
+</jcr:root>

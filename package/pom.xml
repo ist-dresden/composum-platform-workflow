@@ -105,6 +105,9 @@
                             <root>/conf/composum/platform/workflow</root>
                         </filter>
                         <filter>
+                            <root>/conf/composum/workflow/everyone/decline</root>
+                        </filter>
+                        <filter>
                             <root>/libs/composum/platform/workflow</root>
                         </filter>
                         <filter>

@@ -14,8 +14,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static com.composum.platform.workflow.job.GenericWorkflowJob.TOPIC_GENERIC;
-
 public abstract class WorkflowTask extends LoadedModel {
 
     public static final String PN_TOPIC = "topic";
@@ -45,18 +43,14 @@ public abstract class WorkflowTask extends LoadedModel {
     }
 
     @Nonnull
+    public abstract String[] getCategory();
+
+    @Nonnull
+    public abstract String getTopic();
+
+    @Nonnull
     public String getDate() {
         return getDate(JcrConstants.JCR_CREATED);
-    }
-
-    @Nonnull
-    public String getTopic() {
-        return getProperty(PN_TOPIC, TOPIC_GENERIC);
-    }
-
-    @Nonnull
-    public String[] getCategory() {
-        return getProperty(PN_CATEGORY, new String[0]);
     }
 
     @Nonnull

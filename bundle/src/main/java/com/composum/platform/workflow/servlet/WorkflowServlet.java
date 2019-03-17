@@ -35,9 +35,13 @@ import javax.servlet.Servlet;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static com.composum.platform.workflow.model.WorkflowTask.PP_DATA;
 import static javax.servlet.http.HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
@@ -140,22 +144,26 @@ public class WorkflowServlet extends AbstractServiceServlet {
                     if (dispatcher != null) {
                         dispatcher.forward(request, response);
                     } else {
-                        response.sendError(SC_INTERNAL_SERVER_ERROR,
-                                "can't forward request '" + request.getRequestPathInfo().getSuffix() + "'");
+                        sendError(LOG::error, response, SC_INTERNAL_SERVER_ERROR,
+                                i18n(request, "can't forward request") + " '" + request.getRequestPathInfo().getSuffix() + "'");
                     }
                 } else {
-                    response.sendError(HttpServletResponse.SC_BAD_REQUEST,
-                            "invalid task '" + resource.getPath() + "'");
+                    sendError(LOG::info, response, HttpServletResponse.SC_BAD_REQUEST,
+                            i18n(request, "invalid task") + " '" + resource.getPath() + "'");
                 }
             } else {
-                response.sendError(HttpServletResponse.SC_BAD_REQUEST,
-                        "no task found at '" + resource.getPath() + "'");
+                sendError(LOG::info, response, HttpServletResponse.SC_BAD_REQUEST,
+                        i18n(request, "no task found at") + " '" + resource.getPath() + "'");
             }
         }
     }
 
     // Task execution
 
+    /**
+     * creates a task (can be the start of a workflow) and stores the task in the inbox or executes the task
+     * immediately (if 'autoRun' is set to 'true' in the task template)
+     */
     public class AddTaskOperation implements ServletOperation {
 
         @Override
@@ -171,18 +179,21 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 WorkflowTaskInstance taskInstance = workflowService.addTask(context, tenantId, null,
                         taskTemplate, comment, getTaskData(request), null);
                 if (taskInstance != null) {
-                    jsonStatus(request, response, true,
-                            taskInstance.getTemplate().getHintAdded("task created"), null);
+                    jsonStatus(request, response, true, i18n(request, "Success"),
+                            taskInstance.getTemplate().getHintAdded(i18n(request, "task created")), null);
                 } else {
-                    jsonStatus(request, response, false, "task not created", null);
+                    jsonStatus(request, response, false, i18n(request, "Failed"), i18n(request, "task not created"), null);
                 }
             } catch (PersistenceException ex) {
                 LOG.error(ex.getMessage(), ex);
-                jsonStatus(request, response, false, ex.getMessage(), null);
+                jsonStatus(request, response, false, i18n(request, "Failed"), ex.getMessage(), null);
             }
         }
     }
 
+    /**
+     * triggers the execution of the job of the task with the chosen option and the form data
+     */
     public class RunTaskOperation implements ServletOperation {
 
         @Override
@@ -198,25 +209,50 @@ public class WorkflowServlet extends AbstractServiceServlet {
                         optionKey, comment, getTaskData(request), null);
                 if (taskInstance != null) {
                     WorkflowTaskTemplate.Option option = taskInstance.getTemplate().getOption(optionKey);
-                    jsonStatus(request, response, true, option != null
-                            ? option.getHintSelected("task option '" + optionKey + "' choosen")
-                            : "invalid option!? '" + optionKey + "'", null);
+                    jsonStatus(request, response, true,
+                            option != null ? option.getTitle() : i18n(request, "Success"),
+                            option != null
+                                    ? option.getHintSelected(i18n(request, "task option") + " '" + optionKey + "' " + i18n(request, "chosen"))
+                                    : (StringUtils.isNotBlank(optionKey)
+                                    ? i18n(request, "invalid option") + "!? '" + optionKey + "'"
+                                    : i18n(request, "default option used")), null);
                 } else {
-                    jsonStatus(request, response, false, "task job creation failed", null);
+                    jsonStatus(request, response, false, "Failed", i18n(request, "task job creation failed"), null);
                 }
             } catch (PersistenceException ex) {
                 LOG.error(ex.getMessage(), ex);
-                jsonStatus(request, response, false, ex.getMessage(), null);
+                jsonStatus(request, response, false, i18n(request, "Failed"), ex.getMessage(), null);
             }
         }
     }
 
+    /**
+     * collects all parameters named 'data/{property-name}[@Delete]' and returns the map of 'data' properties
+     * from the request; a property marked for deletion ('@Delete' postfix) is stored with value 'null'
+     *
+     * @return the 'data' map of the received form
+     */
     protected Map<String, Object> getTaskData(@Nonnull final SlingHttpServletRequest request) {
         Map<String, Object> data = new HashMap<>();
         for (RequestParameter parameter : request.getRequestParameterList()) {
             String name = parameter.getName();
             if (name.startsWith(PP_DATA + "/")) {
-                data.put(name.substring(PP_DATA.length() + 1), parameter.getString());
+                name = name.substring(PP_DATA.length() + 1);
+                if (name.endsWith("@Delete")) {
+                    data.put(name.substring(0, name.length() - 7), null);
+                } else {
+                    if (data.containsKey(name)) {
+                        Object value = data.get(name);
+                        if (!(value instanceof String[])) {
+                            value = new String[]{(String) value};
+                        }
+                        List<String> multi = new ArrayList<>(Arrays.asList((String[]) value));
+                        multi.add(parameter.getString());
+                        data.put(name, multi.toArray(new String[0]));
+                    } else {
+                        data.put(name, parameter.getString());
+                    }
+                }
             }
         }
         return data;
@@ -239,7 +275,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
 
     protected void jsonStatus(@Nonnull final SlingHttpServletRequest request,
                               @Nonnull final SlingHttpServletResponse response,
-                              final boolean success, @Nullable final String text,
+                              final boolean success, @Nullable final String title, @Nullable final String text,
                               @Nullable final Collection<Message> messages)
             throws IOException {
         if (success) {
@@ -257,6 +293,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
         if (StringUtils.isNotBlank(text)) {
             writer.name("response").beginObject();
             writer.name("level").value(success ? "info" : "error");
+            writer.name("title").value(CpnlElFunctions.i18n(request, title));
             writer.name("text").value(CpnlElFunctions.i18n(request, text));
             writer.endObject();
         }
@@ -273,4 +310,15 @@ public class WorkflowServlet extends AbstractServiceServlet {
         }
         writer.endObject();
     }
+
+    protected void sendError(Consumer<String> log, SlingHttpServletResponse response, int status, String message)
+            throws IOException {
+        log.accept(message);
+        response.sendError(status, message);
+    }
+
+    protected String i18n(SlingHttpServletRequest request, String text) {
+        return CpnlElFunctions.i18n(request, text);
+    }
 }
+

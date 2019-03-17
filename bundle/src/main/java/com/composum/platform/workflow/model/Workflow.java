@@ -40,7 +40,6 @@ public class Workflow extends LoadedModel {
     /**
      * @return 'true' if the workflow is built from task templates only
      */
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean isTemplate() {
         return workflowTemplate;
     }

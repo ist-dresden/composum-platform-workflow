@@ -7,7 +7,6 @@ import com.composum.platform.workflow.model.WorkflowTaskTemplate;
 import com.composum.sling.core.BeanContext;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.event.jobs.Job;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -56,19 +55,10 @@ public interface WorkflowService {
      * @param path    the repository path ('inbox' or an initial path from an app)
      */
     @Nullable
-    WorkflowTaskInstance getInstance(@Nullable BeanContext context, @Nonnull String path);
+    WorkflowTaskInstance getInstance(@Nonnull BeanContext context, @Nonnull String path);
 
     @Nullable
-    WorkflowTaskTemplate getTemplate(@Nullable BeanContext context, @Nonnull String path);
-
-    /**
-     * restores a task from the properties of a job
-     *
-     * @param context the current request context
-     * @param job     the job instance
-     */
-    @Nullable
-    WorkflowTaskInstance getInstance(@Nonnull BeanContext context, @Nonnull Job job);
+    WorkflowTaskTemplate getTemplate(@Nonnull BeanContext context, @Nonnull String path);
 
     /**
      * builds a new (or the next) task instance (for the 'inbox')
@@ -83,7 +73,7 @@ public interface WorkflowService {
      * @return the model of the created instance
      */
     @Nullable
-    WorkflowTaskInstance addTask(@Nullable BeanContext context, @Nullable String tenantId,
+    WorkflowTaskInstance addTask(@Nonnull BeanContext context, @Nullable String tenantId,
                                  @Nullable String previousTask, @Nonnull String taskTemplate,
                                  @Nullable final String comment, @Nullable Map<String, Object> data,
                                  @Nullable final MetaData metaData);
@@ -100,7 +90,7 @@ public interface WorkflowService {
      * @return the model of the moved instance
      */
     @Nullable
-    WorkflowTaskInstance runTask(@Nullable BeanContext context, @Nonnull String taskInstance,
+    WorkflowTaskInstance runTask(@Nonnull BeanContext context, @Nonnull String taskInstance,
                                  @Nullable String option, @Nullable String comment, @Nullable Map<String, Object> data,
                                  @Nullable MetaData metaData)
             throws PersistenceException;
@@ -117,7 +107,7 @@ public interface WorkflowService {
      * @return the model of the moved instance
      */
     @Nullable
-    WorkflowTaskInstance finishTask(@Nullable BeanContext context,
+    WorkflowTaskInstance finishTask(@Nonnull BeanContext context,
                                     @Nonnull String taskInstancePath, boolean cancelled,
                                     @Nullable String comment, @Nullable Map<String, Object> data,
                                     @Nullable MetaData metaData)
@@ -133,10 +123,10 @@ public interface WorkflowService {
             throws PersistenceException;
 
     /**
-     * @return the current state of the task instance
+     * @return the current state of the task referenced by task path or id
      */
     @Nullable
-    WorkflowTaskInstance.State getState(WorkflowTaskInstance instance);
+    WorkflowTaskInstance.State getState(@Nonnull BeanContext context, @Nonnull String pathOrId);
 
     /**
      * @return the tenant id from the task resource path
