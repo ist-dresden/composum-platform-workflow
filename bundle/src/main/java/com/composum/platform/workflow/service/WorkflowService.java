@@ -7,6 +7,8 @@ import com.composum.platform.workflow.model.WorkflowTaskTemplate;
 import com.composum.sling.core.BeanContext;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.osgi.service.metatype.annotations.AttributeDefinition;
+import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -29,6 +31,39 @@ public interface WorkflowService {
     String META_TENANT_ID = "tenantId";
     String META_USER_ID = "userId";
     String META_OPTION = "option";
+
+    @ObjectClassDefinition(
+            name = "Composum Platform Workflow Configuration"
+    )
+    @interface Configuration {
+
+        @AttributeDefinition(
+                name = "Instances Root",
+                description = "the repository path for the workflow instances"
+        )
+        String workflow_root() default "/var/composum/workflow";
+
+        @AttributeDefinition(
+                name = "General Folder",
+                description = "the name of the store for tasks without tenant"
+        )
+        String general_path() default "platform";
+
+        @AttributeDefinition(
+                name = "Days to keep",
+                description = "the number of days to keep finished workflows (default: 100)"
+        )
+        int workflow_keep_days() default 100;
+
+        @AttributeDefinition(
+                name = "Purge cron rule",
+                description = "the cron rule for scheduling the workflow purge job (no scheduling if empty)"
+        )
+        String purge_job_cron() default "0 23 1 * * ?";
+    }
+
+    @Nullable
+    Configuration getConfig();
 
     /**
      * loads a task (template) from the repository
@@ -59,6 +94,17 @@ public interface WorkflowService {
 
     @Nullable
     WorkflowTaskTemplate getTemplate(@Nonnull BeanContext context, @Nonnull String path);
+
+    /**
+     * @return the current state of the task referenced by task path or id
+     */
+    @Nullable
+    WorkflowTaskInstance.State getState(@Nonnull BeanContext context, @Nonnull String pathOrId);
+
+    /**
+     * @return the tenant id from the task resource path
+     */
+    String getTenantId(Resource taskResource);
 
     /**
      * builds a new (or the next) task instance (for the 'inbox')
@@ -96,21 +142,20 @@ public interface WorkflowService {
             throws PersistenceException;
 
     /**
-     * finishes the execution of a workflow by finishing the given task
+     * finishes the execution of the given task
      *
      * @param context          the current request context
      * @param taskInstancePath the path to the task instance ('inbox' resource)
      * @param cancelled        should be 'true' if the workflow execution is cancelled
      * @param comment          an optional comment added to the task
      * @param data             the values for the task to execute ('data' must be named as 'data/key')
-     * @param metaData         the task meta data from the calling job
-     * @return the model of the moved instance
+     * @param actionMetaData   the task meta data from the calling service
      */
     @Nullable
     WorkflowTaskInstance finishTask(@Nonnull BeanContext context,
                                     @Nonnull String taskInstancePath, boolean cancelled,
                                     @Nullable String comment, @Nullable Map<String, Object> data,
-                                    @Nullable MetaData metaData)
+                                    @Nullable MetaData actionMetaData)
             throws PersistenceException;
 
     /**
@@ -123,13 +168,11 @@ public interface WorkflowService {
             throws PersistenceException;
 
     /**
-     * @return the current state of the task referenced by task path or id
+     * removes all tasks of workflows finished before the date 'daysFinished' in the past
+     *
+     * @param context    the current request context (must have all privileges to remove tasks)
+     * @param daysToKeep the number of days to keep finished workflows
      */
-    @Nullable
-    WorkflowTaskInstance.State getState(@Nonnull BeanContext context, @Nonnull String pathOrId);
-
-    /**
-     * @return the tenant id from the task resource path
-     */
-    String getTenantId(Resource taskResource);
+    void purgeTasks(@Nonnull BeanContext context, int daysToKeep)
+            throws PersistenceException;
 }

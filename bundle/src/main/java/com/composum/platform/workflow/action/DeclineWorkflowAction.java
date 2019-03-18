@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.regex.Pattern;
 
 import static com.composum.platform.workflow.action.DeclineWorkflowAction.TOPIC_DECLINE;
 
@@ -30,6 +31,8 @@ public class DeclineWorkflowAction implements WorkflowAction {
 
     public static final String TOPIC_DECLINE = "composum/platform/workflow/decline";
 
+    public static final Pattern MAIL_ADDRESS = Pattern.compile(".+@.*[^.]+\\.[^.]+$");
+
     @Override
     @Nonnull
     public Result process(@Nonnull final BeanContext context,
@@ -37,8 +40,19 @@ public class DeclineWorkflowAction implements WorkflowAction {
                           @Nullable final WorkflowTaskTemplate.Option option, @Nullable final String comment,
                           @Nonnull final MetaData metaData) {
         String answer = task.getData().get(PN_ANSWER, "");
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("process '{}.{}'...", task.getName(), option != null ? option.getName() : "null");
+        }
         if (StringUtils.isNotBlank(answer)) {
-            // TODO send email
+            String mailTo = task.getData().get("userId", "");
+            if (MAIL_ADDRESS.matcher(mailTo).matches()) {
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("sending email to '{}'...", mailTo);
+                }
+                // TODO send email
+            } else {
+                LOG.error("invalid mail address '{}'", mailTo);
+            }
         }
         return Result.OK;
     }

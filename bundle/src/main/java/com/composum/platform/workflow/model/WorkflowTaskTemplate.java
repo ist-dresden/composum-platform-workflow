@@ -47,7 +47,7 @@ public class WorkflowTaskTemplate extends WorkflowTask {
             key = resource.getName();
             String templatePath = getProperty(PN_TEMPLATE, "");
             template = StringUtils.isNotBlank(templatePath)
-                    ? getService().getTemplate(context, templatePath) : null;
+                    ? service.getTemplate(context, templatePath) : null;
             topic = getProperty(PN_TOPIC, "");
             formType = getProperty(PN_FORM_TYPE, "");
             title = i18n().get(PN_TITLE, template != null ? template.getTitle() : "");
@@ -171,6 +171,11 @@ public class WorkflowTaskTemplate extends WorkflowTask {
             }
         }
         return options;
+    }
+
+    @Override
+    public String toString() {
+        return getPath();
     }
 
     @Override

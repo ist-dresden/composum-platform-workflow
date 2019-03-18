@@ -11,9 +11,13 @@ import org.apache.sling.api.wrappers.ValueMapDecorator;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * the abstract base class of a task instance and a task template
+ */
 public abstract class WorkflowTask extends LoadedModel {
 
     public static final String PN_TOPIC = "topic";
@@ -23,7 +27,7 @@ public abstract class WorkflowTask extends LoadedModel {
     public static final String PP_DATA = "data";
     public static final String PP_COMMENTS = "comments";
 
-    private final WorkflowService service;
+    protected final WorkflowService service;
 
     private transient ValueMap data;
     private transient String dataHint;
@@ -32,25 +36,37 @@ public abstract class WorkflowTask extends LoadedModel {
         this.service = service;
     }
 
+    /**
+     * preload all properties to decouple model from resolver
+     * (service resolver maybe closed earlier than properties accessed)
+     */
     @Override
     public void initialize(BeanContext context, Resource resource) {
         super.initialize(context, new LoadedResource(resource));
     }
 
-    @Nonnull
-    public WorkflowService getService() {
-        return service;
-    }
-
+    /**
+     * a template uses its properties ; an instance uses their template
+     */
     @Nonnull
     public abstract String[] getCategory();
 
+    /**
+     * a template uses its properties ; an instance uses their template
+     */
     @Nonnull
     public abstract String getTopic();
 
+    /**
+     * @return the creation date as formatted string
+     */
     @Nonnull
     public String getDate() {
         return getDate(JcrConstants.JCR_CREATED);
+    }
+
+    public Calendar getCreated() {
+        return getProperty(JcrConstants.JCR_CREATED, Calendar.class);
     }
 
     @Nonnull
@@ -58,6 +74,9 @@ public abstract class WorkflowTask extends LoadedModel {
         return getProperty(PN_ASSIGNEE, "");
     }
 
+    /**
+     * @return the value map of the 'data' child node
+     */
     @Nonnull
     public ValueMap getData() {
         if (data == null) {
@@ -67,6 +86,9 @@ public abstract class WorkflowTask extends LoadedModel {
         return data;
     }
 
+    /**
+     * @return an HTML table of all data values
+     */
     @Nonnull
     public String getDataHint() {
         if (dataHint == null) {

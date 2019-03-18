@@ -6,6 +6,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.Resource;
 
 import javax.annotation.Nonnull;
+import java.util.Calendar;
 
 public class WorkflowTaskInstance extends WorkflowTask {
 
@@ -36,20 +37,25 @@ public class WorkflowTaskInstance extends WorkflowTask {
     public void initialize(BeanContext context, Resource resource) {
         super.initialize(context, resource);
         getTemplate();
+        getState();
     }
 
     public WorkflowTaskTemplate getTemplate() {
         if (template == null) {
-            template = getService().getTemplate(context, getProperty(PN_TEMPLATE, ""));
+            template = service.getTemplate(context, getProperty(PN_TEMPLATE, ""));
         }
         return template;
     }
 
     public State getState() {
         if (state == null) {
-            state = getService().getState(context, getName());
+            state = service.getState(context, getName());
         }
         return state;
+    }
+
+    public Calendar getFinished() {
+        return getProperty(PN_FINISHED, Calendar.class);
     }
 
     public String getTitle() {
@@ -94,7 +100,12 @@ public class WorkflowTaskInstance extends WorkflowTask {
 
     protected WorkflowTaskInstance getTask(String propertyName) {
         String prevTaskId = getProperty(propertyName, String.class);
-        return StringUtils.isNotBlank(prevTaskId) ? getService().getInstance(context, prevTaskId) : null;
+        return StringUtils.isNotBlank(prevTaskId) ? service.getInstance(context, prevTaskId) : null;
+    }
+
+    @Override
+    public String toString() {
+        return getName() + ":" + getProperty(PN_TEMPLATE, "<?>");
     }
 
     @Override

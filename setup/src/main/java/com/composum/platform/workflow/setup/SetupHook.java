@@ -12,6 +12,10 @@ import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import java.io.IOException;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+
 @SuppressWarnings("Duplicates")
 public class SetupHook implements InstallHook {
 
@@ -25,9 +29,24 @@ public class SetupHook implements InstallHook {
         switch (ctx.getPhase()) {
             case INSTALLED:
                 LOG.info("installed: execute...");
+                setupUsers(ctx);
                 setupAcls(ctx);
                 LOG.info("installed: execute ends.");
                 break;
+        }
+    }
+
+    protected void setupUsers(InstallContext ctx) throws PackageException {
+        try {
+            SetupUtil.setupGroupsAndUsers(ctx,
+                    singletonMap("system/composum/platform/composum-platform-services",
+                            emptyList()),
+                    singletonMap("system/composum/platform/composum-platform-workflow-service",
+                            singletonList("composum-platform-services")),
+                    null);
+        } catch (RuntimeException e) {
+            LOG.error("" + e, e);
+            throw new PackageException(e);
         }
     }
 
