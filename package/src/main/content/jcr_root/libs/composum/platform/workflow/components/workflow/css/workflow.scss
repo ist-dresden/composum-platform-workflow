@@ -1,0 +1,301 @@
+.composum-platform-workflow {
+
+    &_body {
+        padding: 10px;
+        background-color: #e4e4e4;
+    }
+
+    &_workflow {
+        overflow: scroll;
+
+        .composum-platform-workflow {
+
+            &_task {
+                padding: 10px 0;
+
+                .task-node {
+                    position: relative;
+                    width: 300px;
+                    margin: 0 auto;
+                    border: 2px solid #666;
+                    background: #f0f0f0;
+                    padding: 2px 5px;
+
+                    &, .table, p {
+                        font-size: 12px;
+                        line-height: 16px;
+                    }
+
+                    p {
+                        margin: 3px 0;
+                    }
+
+                    .table {
+                        width: auto;
+                        margin: 5px auto;
+
+                        > tbody {
+
+                            > tr {
+
+                                > th, > td {
+                                    padding: 0 5px !important;
+                                }
+
+                                > td.value {
+                                    min-width: 120px;
+                                }
+
+                                p {
+                                    margin: 0;
+                                }
+                            }
+                        }
+                    }
+
+                    .title {
+                        margin: 3px 0 2px;
+                        font-weight: bold;
+                        line-height: 18px;
+
+                        .icon {
+                            display: inline-block;
+                            width: 20px;
+                            font-size: 14px;
+                        }
+                    }
+
+                    .assignee, .date, .topic, .template {
+                        width: 100%;
+                        font-size: 10px;
+                        line-height: 11px;
+                        color: #888;
+
+                        .icon {
+                            display: inline-block;
+                            margin-right: 4px;
+                            width: 11px;
+                            text-align: center;
+                            font-size: 10px;
+                        }
+                    }
+
+                    .meta {
+                        position: absolute;
+                        top: 2px;
+                        right: 2px;
+                    }
+                }
+
+                &.current-task {
+
+                    .task-node {
+                        background: #ffffff;
+                    }
+                }
+
+                &.task-instance {
+
+                    &.task-state {
+
+                        &_pending {
+
+                            .task-node {
+                                border-color: #fc4;
+                            }
+                        }
+
+                        &_running {
+
+                            .task-node {
+                                border-color: #c66;
+                            }
+                        }
+
+                        &_finished {
+
+                            .task-node {
+                                border-color: #4c4;
+
+                                .topic {
+
+                                    .icon {
+                                        color: #4c4;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                &.task-template {
+
+                    .task-node {
+                        border-style: dotted;
+                        border-color: #c0c0c0;
+                        color: #888;
+
+                        .table {
+                            color: #888;
+                        }
+                    }
+                }
+
+                &_option {
+                    padding: 10px 0 0;
+
+                    .option-node {
+                        position: relative;
+                        width: 240px;
+                        margin: 0 30px;
+                        border: 2px dotted #c0c0c0;
+                        background: #f0f0f0;
+                        padding: 1px 4px;
+
+                        &, .table, p {
+                            font-size: 11px;
+                            line-height: 14px;
+                            color: #666;
+                        }
+
+                        p {
+                            margin: 0;
+                        }
+
+                        .title {
+                            font-weight: bold;
+                            line-height: 18px;
+                        }
+
+                        .topic {
+                            width: 100%;
+                            margin: 2px 0;
+                            font-size: 10px;
+                            line-height: 11px;
+                            color: #888;
+
+                            .icon {
+                                display: inline-block;
+                                margin-right: 4px;
+                                width: 11px;
+                                text-align: center;
+                                font-size: 10px;
+                            }
+                        }
+                    }
+
+                    &.chosen-option {
+
+                        .option-node {
+                            border-style: solid;
+                            border-color: #4c4;
+
+                            .topic {
+
+                                .icon {
+                                    color: #4c4;
+                                }
+                            }
+                        }
+
+                        &.current-task {
+
+                            .option-node {
+                                background-color: #ffffff;
+                            }
+                        }
+                    }
+                }
+            }
+
+            &_task, &_task_option {
+
+                &.workflow-start {
+                    padding-top: 30px;
+
+                    &:before {
+                        position: absolute;
+                        left: 50%;
+                        top: 0;
+                        margin-left: -10px;
+                        content: ' ';
+                        background: #ffffff;
+                        border: 1px solid #666;
+                        border-radius: 10px;
+                        width: 20px;
+                        height: 20px;
+                    }
+                }
+
+                &.workflow-end {
+                    padding-bottom: 30px;
+
+                    &:after {
+                        position: absolute;
+                        left: 50%;
+                        bottom: 0;
+                        margin-left: -10px;
+                        content: ' ';
+                        background: #888;
+                        border-radius: 10px;
+                        width: 20px;
+                        height: 20px;
+                    }
+                }
+            }
+        }
+    }
+
+    &_graph {
+
+        &_task, &_transition {
+            position: relative;
+
+            .graph-task-bg-left, .graph-task-bg-right,
+            .graph-transition-bg-left, .graph-transition-bg-right {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                width: 50%;
+            }
+
+            .graph-task--bg-left, .graph-transition-bg-left {
+                left: 0;
+            }
+
+            .graph-task-bg-right, .graph-transition-bg-right {
+                right: 0;
+                border-left: 1px solid #666;
+            }
+        }
+
+        &_task-options {
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        &_transition {
+            display: inline-block;
+
+            .graph-transition-bg-left, .graph-transition-bg-right {
+                border-top: 1px solid #666;
+            }
+
+            &:first-child {
+
+                .graph-transition-bg-left {
+                    border-top: none;
+                }
+            }
+
+            &:last-child {
+
+                .graph-transition-bg-right {
+                    border-top: none;
+                }
+            }
+        }
+    }
+}

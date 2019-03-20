@@ -19,15 +19,15 @@ public class Workflow extends LoadedModel {
 
     private static final Logger LOG = LoggerFactory.getLogger(Workflow.class);
 
-    private final WorkflowService service;
+    private transient WorkflowService service;
 
     public class Transition {
 
         public final WorkflowTask from;
-        public final WorkflowTaskTemplate.Option option;
+        public final WorkflowTask.Option option;
         public final WorkflowTask to;
 
-        public Transition(WorkflowTask from, WorkflowTaskTemplate.Option option, WorkflowTask to) {
+        public Transition(WorkflowTask from, WorkflowTask.Option option, WorkflowTask to) {
             this.from = from;
             this.option = option;
             this.to = to;
@@ -43,6 +43,8 @@ public class Workflow extends LoadedModel {
     protected Calendar finished;
     protected WorkflowTask firstTask;
     protected WorkflowTaskInstance lastTask;
+
+    private transient List<List<WorkflowTask>> rows;
 
     /**
      * @return 'true' if the workflow is built from task templates only
@@ -65,16 +67,22 @@ public class Workflow extends LoadedModel {
         return !isTemplate() && openTasks.isEmpty();
     }
 
-    public boolean isEmpty() {
+    public boolean isHollow() {
         return tasks.isEmpty();
-    }
-
-    public Workflow(WorkflowService service) {
-        this.service = service;
     }
 
     public LinkedHashMap<String, WorkflowTask> getTasks() {
         return tasks;
+    }
+
+    public WorkflowTask getTask(Resource resource) {
+        String path = resource.getPath();
+        for (WorkflowTask task : getTasks().values()) {
+            if (task.getPath().equals(path)) {
+                return task;
+            }
+        }
+        return null;
     }
 
     public boolean containsTasks(WorkflowTask task) {
@@ -112,7 +120,7 @@ public class Workflow extends LoadedModel {
     public List<Transition> getTransitions(WorkflowTask task) {
         List<Transition> subset = new ArrayList<>();
         for (Transition transition : transitions) {
-            if (transition.from == task) {
+            if (transition.from.equals(task)) {
                 subset.add(transition);
             }
         }
@@ -147,12 +155,19 @@ public class Workflow extends LoadedModel {
 
     // build from instances
 
+    protected WorkflowService getService() {
+        if (service == null) {
+            service = context.getService(WorkflowService.class);
+        }
+        return service;
+    }
+
     /**
      * @return the initial (first) instance of a running workflow;
      * 'null' if the resource doesn't reference a workflow instance
      */
     protected WorkflowTaskInstance findInitialTaskInstance(BeanContext context) {
-        WorkflowTaskInstance task = service.getInstance(context, resource.getPath());
+        WorkflowTaskInstance task = getService().getInstance(context, resource.getPath());
         if (task != null) {
             WorkflowTaskInstance prevTask;
             while ((prevTask = task.getPreviousTask()) != null) {
@@ -182,14 +197,14 @@ public class Workflow extends LoadedModel {
         }
         WorkflowTaskTemplate template = task.getTemplate();
         WorkflowTaskInstance nextTask = task.getNextTask();
-        WorkflowTaskTemplate.Option chosenOption = null;
+        WorkflowTask.Option chosenOption = null;
         if (nextTask != null) {
             String optionKey = task.getChosenOption();
             chosenOption = template.getOption(optionKey);
             transitions.add(new Transition(task, chosenOption, nextTask));
             buildWorkflowFromInstances(context, nextTask);
         }
-        for (WorkflowTaskTemplate.Option option : template.getOptions()) {
+        for (WorkflowTask.Option option : template.getOptions()) {
             if (!option.equals(chosenOption)) {
                 addOption(context, task, option);
             }
@@ -202,23 +217,23 @@ public class Workflow extends LoadedModel {
      * scan configuration assuming that the resource references the first task template of the workflow
      */
     protected void buildWorkflowFromTemplates(@Nonnull final BeanContext context) {
-        WorkflowTaskTemplate task = service.getTemplate(context, resource.getPath());
+        WorkflowTaskTemplate task = getService().getTemplate(context, resource.getPath());
         if (task != null) {
-            addTask(task);
             firstTask = task;
+            buildWorkflowFromTemplates(context, task);
         }
     }
 
     protected void buildWorkflowFromTemplates(@Nonnull final BeanContext context,
                                               @Nonnull final WorkflowTaskTemplate task) {
         addTask(task);
-        for (WorkflowTaskTemplate.Option option : task.getOptions()) {
+        for (WorkflowTask.Option option : task.getOptions()) {
             addOption(context, task, option);
         }
     }
 
     protected void addOption(@Nonnull final BeanContext context,
-                             @Nonnull final WorkflowTask task, @Nonnull final WorkflowTaskTemplate.Option option) {
+                             @Nonnull final WorkflowTask task, @Nonnull final WorkflowTask.Option option) {
         transitions.add(new Transition(task, option, option.template));
         if (option.template != null) {
             buildWorkflowFromTemplates(context, option.template);
@@ -248,5 +263,35 @@ public class Workflow extends LoadedModel {
     @Override
     public int hashCode() {
         return getFirstTask().hashCode();
+    }
+
+    @Nonnull
+    public List<List<WorkflowTask>> getRows() {
+        if (rows == null) {
+            rows = new ArrayList<>();
+            WorkflowTask firstTask = getFirstTask();
+            if (firstTask != null) {
+                List<WorkflowTask> row = new ArrayList<>();
+                row.add(getFirstTask());
+                rows.add(row);
+                while ((row = buildRow(row)).size() > 0) {
+                    rows.add(row);
+                }
+            }
+        }
+        return rows;
+    }
+
+    @Nonnull
+    protected List<WorkflowTask> buildRow(@Nonnull final List<WorkflowTask> above) {
+        List<WorkflowTask> row = new ArrayList<>();
+        for (WorkflowTask task : above) {
+            for (Transition transition : getTransitions(task)) {
+                if (transition.to != null) {
+                    row.add(transition.to);
+                }
+            }
+        }
+        return row;
     }
 }

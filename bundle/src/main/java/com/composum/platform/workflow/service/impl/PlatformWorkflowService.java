@@ -53,6 +53,7 @@ import java.util.regex.Pattern;
 import static com.composum.platform.workflow.model.WorkflowTask.PN_ASSIGNEE;
 import static com.composum.platform.workflow.model.WorkflowTask.PP_COMMENTS;
 import static com.composum.platform.workflow.model.WorkflowTask.PP_DATA;
+import static com.composum.platform.workflow.model.WorkflowTaskInstance.INSTANCE_TYPE;
 import static com.composum.platform.workflow.model.WorkflowTaskInstance.PN_CANCELLED;
 import static com.composum.platform.workflow.model.WorkflowTaskInstance.PN_CANCELLED_BY;
 import static com.composum.platform.workflow.model.WorkflowTaskInstance.PN_CHOSEN_OPTION;
@@ -163,9 +164,9 @@ public class PlatformWorkflowService implements WorkflowService {
     @Override
     @Nullable
     public Workflow getWorkflow(@Nonnull final BeanContext context, @Nonnull final Resource resource) {
-        Workflow workflow = new Workflow(this);
+        Workflow workflow = new Workflow();
         workflow.initialize(context, resource);
-        return workflow.isEmpty() ? null : workflow;
+        return workflow.isHollow() ? null : workflow;
     }
 
     @Override
@@ -310,6 +311,7 @@ public class PlatformWorkflowService implements WorkflowService {
                 String assignee = metaData.getValue(template.getAssignee());
                 Map<String, Object> properties = new HashMap<>();
                 properties.put(JcrConstants.JCR_PRIMARYTYPE, ResourceUtil.TYPE_SLING_FOLDER);
+                properties.put(ResourceUtil.PROP_RESOURCE_TYPE, INSTANCE_TYPE);
                 properties.put(WorkflowTaskInstance.PN_TEMPLATE, template.getPath());
                 if (StringUtils.isNotBlank(assignee)) {
                     properties.put(WorkflowTaskInstance.PN_ASSIGNEE, assignee);
@@ -464,8 +466,7 @@ public class PlatformWorkflowService implements WorkflowService {
                                         @Nullable final String optionKey, @Nullable final String comment,
                                         @Nonnull final MetaData actionMetaData) {
         WorkflowAction.Result result = new WorkflowAction.Result();
-        WorkflowTaskTemplate.Option option = StringUtils.isNotBlank(optionKey)
-                ? taskInstance.getTemplate().getOption(optionKey) : null;
+        WorkflowTaskTemplate.Option option = taskInstance.getTemplate().getOption(optionKey);
         String topic = taskInstance.getTopic();
         if (StringUtils.isNotBlank(topic)) {
             result.merge(processAction(topic, context, taskInstance, option, comment, actionMetaData));
@@ -640,9 +641,9 @@ public class PlatformWorkflowService implements WorkflowService {
         Iterator<Resource> finished = resolver.findResources(query, Query.XPATH);
         while (finished.hasNext()) {
             Resource taskResource = finished.next();
-            Workflow workflow = new Workflow(this);
+            Workflow workflow = new Workflow();
             workflow.initialize(context, taskResource);
-            if (workflow.isEmpty()) {
+            if (workflow.isHollow()) {
                 LOG.error("can't load workflow of task '{}'", taskResource.getPath());
             } else {
                 if (workflow.isFinished()) {
@@ -818,7 +819,7 @@ public class PlatformWorkflowService implements WorkflowService {
                                                   @Nonnull Class<T> type) {
         T task;
         try {
-            task = type.getConstructor(WorkflowService.class).newInstance(this);
+            task = type.newInstance();
             task.initialize(context, resource);
         } catch (Exception ex) {
             LOG.error(ex.getMessage(), ex);

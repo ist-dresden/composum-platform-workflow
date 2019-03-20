@@ -158,7 +158,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
         }
     }
 
-    // Task execution
+    // Wrapper execution
 
     /**
      * creates a task (can be the start of a workflow) and stores the task in the inbox or executes the task

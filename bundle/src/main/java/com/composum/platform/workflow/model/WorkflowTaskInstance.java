@@ -1,16 +1,19 @@
 package com.composum.platform.workflow.model;
 
-import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.core.BeanContext;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.resource.Resource;
 
 import javax.annotation.Nonnull;
 import java.util.Calendar;
+import java.util.Collection;
 
 public class WorkflowTaskInstance extends WorkflowTask {
 
     public enum State {pending, running, finished}
+
+    public static final String INSTANCE_TYPE = "composum/platform/workflow/task/instance";
 
     public static final String PN_INITIATOR = "initiator";
     public static final String PN_TEMPLATE = "template";
@@ -29,10 +32,6 @@ public class WorkflowTaskInstance extends WorkflowTask {
     private transient WorkflowTaskInstance previousTask;
     private transient WorkflowTaskInstance nextTask;
 
-    public WorkflowTaskInstance(WorkflowService service) {
-        super(service);
-    }
-
     @Override
     public void initialize(BeanContext context, Resource resource) {
         super.initialize(context, resource);
@@ -40,18 +39,31 @@ public class WorkflowTaskInstance extends WorkflowTask {
         getState();
     }
 
+    @Nonnull
+    public String getResourceType() {
+        return INSTANCE_TYPE;
+    }
+
     public WorkflowTaskTemplate getTemplate() {
         if (template == null) {
-            template = service.getTemplate(context, getProperty(PN_TEMPLATE, ""));
+            template = getService().getTemplate(context, getProperty(PN_TEMPLATE, ""));
         }
         return template;
     }
 
     public State getState() {
         if (state == null) {
-            state = service.getState(context, getName());
+            state = getService().getState(context, getName());
         }
         return state;
+    }
+
+    /**
+     * @return the last relevant date (executed, finished, created) as formatted string
+     */
+    @Nonnull
+    public String getDate() {
+        return getDate(PN_EXECUTED, PN_FINISHED, JcrConstants.JCR_CREATED);
     }
 
     public Calendar getFinished() {
@@ -66,6 +78,11 @@ public class WorkflowTaskInstance extends WorkflowTask {
         return getTemplate().getHint();
     }
 
+    @Nonnull
+    public String getUserId() {
+        return getProperty(PN_EXECUTED_BY, getProperty(PN_FINISHED_BY, getAssignee()));
+    }
+
     public String getInitiator() {
         return getProperty(PN_INITIATOR, "");
     }
@@ -78,6 +95,12 @@ public class WorkflowTaskInstance extends WorkflowTask {
     @Nonnull
     public String getTopic() {
         return getTemplate().getTopic();
+    }
+
+    @Override
+    @Nonnull
+    public Collection<Option> getOptions() {
+        return getTemplate().getOptions();
     }
 
     public WorkflowTaskInstance getPreviousTask() {
@@ -100,7 +123,7 @@ public class WorkflowTaskInstance extends WorkflowTask {
 
     protected WorkflowTaskInstance getTask(String propertyName) {
         String prevTaskId = getProperty(propertyName, String.class);
-        return StringUtils.isNotBlank(prevTaskId) ? service.getInstance(context, prevTaskId) : null;
+        return StringUtils.isNotBlank(prevTaskId) ? getService().getInstance(context, prevTaskId) : null;
     }
 
     @Override
