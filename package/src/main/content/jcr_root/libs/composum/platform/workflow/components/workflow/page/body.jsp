@@ -4,5 +4,5 @@
 <sling:defineObjects/>
 <body class="composum-platform-workflow_body">
 <sling:call script="content.jsp"/>
-<cpn:clientlib type="js" category="composum.platform.workflow"/>
+<cpn:clientlib type="js" category="composum.platform.workflow.page"/>
 </body>

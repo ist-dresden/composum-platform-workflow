@@ -92,10 +92,13 @@ public class PlatformWorkflowService implements WorkflowService {
     protected static final String WRITE_PRIVILEGE_KEY = "rep:write";
     protected static final String[] TASK_PRIVILEGE_KEYS = new String[]{"jcr:read"};
 
-    protected class TaskAssigneeFilter implements ResourceFilter {
+    protected class TaskInstanceAssigneeFilter implements ResourceFilter {
 
         @Override
         public boolean accept(Resource resource) {
+            if (!resource.isResourceType(INSTANCE_TYPE)) {
+                return false;
+            }
             ValueMap values = resource.getValueMap();
             String assignee = values.get(PN_ASSIGNEE, "");
             Session session = resource.getResourceResolver().adaptTo(Session.class);
@@ -149,7 +152,7 @@ public class PlatformWorkflowService implements WorkflowService {
         ArrayList<WorkflowTaskInstance> tasks = new ArrayList<>();
         Resource folder = getInstanceFolder(context, tenantId, WorkflowTaskInstance.State.pending);
         if (folder != null) {
-            ResourceFilter filter = new TaskAssigneeFilter();
+            ResourceFilter filter = new TaskInstanceAssigneeFilter();
             for (Resource entry : folder.getChildren()) {
                 if (filter.accept(entry)) {
                     WorkflowTaskInstance task = loadTask(context, entry.getPath(), WorkflowTaskInstance.class);
@@ -403,7 +406,7 @@ public class PlatformWorkflowService implements WorkflowService {
         WorkflowTaskInstance result = null;
         WorkflowTaskInstance task = loadInstance(context, taskInstancePath);
         if (task != null) {
-            if (new TaskAssigneeFilter().accept(task.getResource())) {
+            if (new TaskInstanceAssigneeFilter().accept(task.getResource())) {
                 try (final ServiceContext serviceContext = new ServiceContext(context)) {
                     result = runTask(serviceContext, task, option, comment, data, actionMetaData, true);
                 } catch (LoginException ex) {

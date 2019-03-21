@@ -1,14 +1,38 @@
+
 .composum-platform-workflow {
 
     &_body {
-        padding: 10px;
         background-color: #e4e4e4;
     }
 
+    &_dialog {
+
+        &.workflow-graph {
+
+            .modal-dialog {
+                width: 96%;
+
+                .workflow-dialog {
+
+                    &_content {
+                        background-color: #e4e4e4;
+                    }
+                }
+            }
+        }
+    }
+
     &_workflow {
+        display: flex;
+        justify-content: center;
         overflow: scroll;
 
         .composum-platform-workflow {
+
+            &_workflow-graph {
+                min-width: 1000px;
+                padding: 20px;
+            }
 
             &_task {
                 padding: 10px 0;
@@ -43,6 +67,7 @@
                                 }
 
                                 > td.value {
+                                    width: inherit;
                                     min-width: 120px;
                                 }
 

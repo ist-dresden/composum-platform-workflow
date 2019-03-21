@@ -66,6 +66,16 @@
                 return $chosen.length > 0 ? $chosen[0].view : undefined;
             },
 
+            validateForm: function () {
+                var result = core.components.FormDialog.prototype.validateForm.apply(this);
+                var chosenOption = this.getChosenOption();
+                if (!chosenOption) {
+                    this.validationHint('error', 'Option', 'an option must be chosen');
+                    result = false;
+                }
+                return result;
+            },
+
             doSubmit: function (callback) {
                 this.submitForm(callback);
             }

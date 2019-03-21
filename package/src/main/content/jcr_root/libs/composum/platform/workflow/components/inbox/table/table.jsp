@@ -12,6 +12,7 @@
                 <th class="title">Task</th>
                 <th class="hint">Description</th>
                 <th class="assignee">Assignee</th>
+                <th class="workflow"><span class="fa fa-search"></span></th>
             </tr>
             </thead>
             <tbody>
@@ -24,6 +25,10 @@
                                 data-hint="${cpn:attr(slingRequest,task.dataHint,0)}">${cpn:text(task.title)}</td>
                             <td class="hint">${cpn:rich(slingRequest,task.hint)}</td>
                             <td class="assignee">${cpn:text(task.assignee)}</td>
+                            <td class="workflow">
+                                <span class="show-workflow fa fa-sitemap"
+                                      title="${cpn:i18n(slingRequest,'Workflow')}"></span>
+                            </td>
                         </tr>
                     </c:forEach>
                 </c:when>

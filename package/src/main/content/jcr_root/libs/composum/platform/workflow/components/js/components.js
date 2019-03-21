@@ -12,6 +12,7 @@
         workflow.InboxTableTask = Backbone.View.extend({
 
             initialize: function (options) {
+                this.$('.workflow').click(_.bind(this.toggleWorkflow, this));
                 this.$el.click(_.bind(this.openDialog, this));
             },
 
@@ -20,6 +21,20 @@
                     event.preventDefault();
                 }
                 workflow.inboxTable.openDialog(this);
+                return false;
+            },
+
+            toggleWorkflow: function (event) {
+                if (event) {
+                    event.preventDefault();
+                }
+                if (this.$workflow) {
+                    this.$workflow.popover('toggle');
+                } else {
+                    core.getHtml(this.$el.data('path') + '.dialog.html', _.bind(function (content) {
+                        core.showLoadedDialog(core.components.LoadedDialog, content);
+                    }, this));
+                }
                 return false;
             }
         });
