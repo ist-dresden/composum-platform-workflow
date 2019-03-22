@@ -2,6 +2,7 @@ package com.composum.platform.workflow.model;
 
 import com.composum.platform.models.simple.LoadedModel;
 import com.composum.platform.models.simple.LoadedResource;
+import com.composum.platform.models.simple.ViewValueMap;
 import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.core.BeanContext;
 import org.apache.commons.lang3.StringUtils;
@@ -186,6 +187,10 @@ public abstract class WorkflowTask extends LoadedModel {
             data = child != null ? child.getValueMap() : new ValueMapDecorator(Collections.emptyMap());
         }
         return data;
+    }
+
+    public ViewValueMap getDataView(){
+        return new ViewValueMap(getData());
     }
 
     /**

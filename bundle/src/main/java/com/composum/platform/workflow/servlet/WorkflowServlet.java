@@ -234,12 +234,15 @@ public class WorkflowServlet extends AbstractServiceServlet {
      */
     protected Map<String, Object> getTaskData(@Nonnull final SlingHttpServletRequest request) {
         Map<String, Object> data = new HashMap<>();
+        Map<String, String> typeHint = new HashMap<>();
         for (RequestParameter parameter : request.getRequestParameterList()) {
             String name = parameter.getName();
             if (name.startsWith(PP_DATA + "/")) {
                 name = name.substring(PP_DATA.length() + 1);
                 if (name.endsWith("@Delete")) {
                     data.put(name.substring(0, name.length() - 7), null);
+                } else if (name.endsWith("@TypeHint")) {
+                    typeHint.put(name.substring(0, name.length() - 9), parameter.getString());
                 } else {
                     if (data.containsKey(name)) {
                         Object value = data.get(name);
@@ -250,7 +253,12 @@ public class WorkflowServlet extends AbstractServiceServlet {
                         multi.add(parameter.getString());
                         data.put(name, multi.toArray(new String[0]));
                     } else {
-                        data.put(name, parameter.getString());
+                        String type = typeHint.get(name);
+                        if ("String[]".equals(type)) {
+                            data.put(name, new String[]{parameter.getString()});
+                        } else {
+                            data.put(name, parameter.getString());
+                        }
                     }
                 }
             }

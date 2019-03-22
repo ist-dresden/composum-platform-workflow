@@ -69,7 +69,7 @@
             validateForm: function () {
                 var result = core.components.FormDialog.prototype.validateForm.apply(this);
                 var chosenOption = this.getChosenOption();
-                if (!chosenOption) {
+                if (!chosenOption && this.options.length > 0) {
                     this.validationHint('error', 'Option', 'an option must be chosen');
                     result = false;
                 }
