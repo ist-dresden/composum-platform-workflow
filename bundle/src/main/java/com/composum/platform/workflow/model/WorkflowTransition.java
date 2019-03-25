@@ -4,11 +4,17 @@ import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.SlingBean;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
 
 import java.util.List;
 
+import static com.composum.platform.workflow.model.Workflow.RA_WORKFLOW;
+
 public class WorkflowTransition implements SlingBean {
+
+    public static final String RA_TRANSITION = RA_WORKFLOW + "_transition";
+    public static final String RA_TASK_OPTION = RA_WORKFLOW + "_task_option";
 
     protected Workflow.Transition transition;
     protected WorkflowTask task;
@@ -52,34 +58,43 @@ public class WorkflowTransition implements SlingBean {
 
     protected Workflow.Transition getTransition() {
         if (transition == null) {
-            Workflow workflow = (Workflow) context.getRequest().getAttribute("workflow");
+            SlingHttpServletRequest request = context.getRequest();
+            Workflow workflow = (Workflow) request.getAttribute(RA_WORKFLOW);
             if (workflow != null) {
-                String suffix = context.getRequest().getRequestPathInfo().getSuffix();
-                if (suffix != null) {
-                    if (suffix.startsWith("/")) {
-                        suffix = suffix.substring(1);
-                    }
-                    task = workflow.getTask(initialResource);
-                    if (task != null) {
-                        List<Workflow.Transition> transitions = workflow.getTransitions(task);
-                        for (Workflow.Transition transition : transitions) {
-                            if (transition.option.key.equals(suffix)) {
-                                this.transition = transition;
-                                break;
-                            }
+                WorkflowTask.Option option = (WorkflowTask.Option) request.getAttribute(RA_TASK_OPTION);
+                if (option != null) {
+                    transition = workflow.getTransition(option);
+                }
+                if (transition == null) {
+                    String suffix = context.getRequest().getRequestPathInfo().getSuffix();
+                    if (suffix != null) {
+                        if (suffix.startsWith("/")) {
+                            suffix = suffix.substring(1);
                         }
-                        if (transition != null) {
-                            chosen = task instanceof WorkflowTaskInstance &&
-                                    transition.option.key.equals(((WorkflowTaskInstance) task).getChosenOption());
+                        task = workflow.getTask(initialResource);
+                        if (task != null) {
+                            List<Workflow.Transition> transitions = workflow.getTransitions(task);
+                            for (Workflow.Transition transition : transitions) {
+                                if (transition.option.key.equals(suffix)) {
+                                    this.transition = transition;
+                                    break;
+                                }
+                            }
+                            if (transition == null) {
+                                throw new IllegalArgumentException("unknown option '" + suffix + "'");
+                            }
                         } else {
-                            throw new IllegalArgumentException("unknown option '" + suffix + "'");
+                            throw new IllegalArgumentException("task not found '" + initialResource.getPath() + "'");
                         }
                     } else {
-                        throw new IllegalArgumentException("task not found '" + initialResource.getPath() + "'");
+                        throw new IllegalArgumentException("invalid option request");
                     }
-                } else {
-                    throw new IllegalArgumentException("invalid option request");
                 }
+                if (task == null) {
+                    task = transition.from;
+                }
+                chosen = task instanceof WorkflowTaskInstance &&
+                        transition.option.key.equals(((WorkflowTaskInstance) task).getChosenOption());
             } else {
                 throw new IllegalArgumentException("no workflow found");
             }
@@ -105,13 +120,22 @@ public class WorkflowTransition implements SlingBean {
         return chosen;
     }
 
+    public boolean isWorkflowLoop() {
+        getTransition();
+        return transition.option.isLoop();
+    }
+
     public boolean isWorkflowEnd() {
         return StringUtils.isBlank(getToTaskPath());
     }
 
+    public WorkflowTask getToTask() {
+        return getTransition().to;
+    }
+
     public String getToTaskPath() {
-        Workflow.Transition transition = getTransition();
-        return transition.to != null ? transition.to.getPath() : "";
+        WorkflowTask toTask = getToTask();
+        return toTask != null ? toTask.getPath() : "";
     }
 
     public boolean isDefault() {
@@ -132,6 +156,11 @@ public class WorkflowTransition implements SlingBean {
 
     public String getTopic() {
         return getOption().getTopic();
+    }
+
+    @Override
+    public String toString() {
+        return transition.toString();
     }
 
     @Override

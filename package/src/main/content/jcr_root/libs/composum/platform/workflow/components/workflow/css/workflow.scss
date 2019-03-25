@@ -23,14 +23,12 @@
     }
 
     &_workflow {
-        display: flex;
-        justify-content: center;
-        overflow: scroll;
+        overflow: auto;
 
         .composum-platform-workflow {
 
             &_workflow-graph {
-                min-width: 1000px;
+                position: absolute;
                 padding: 20px;
             }
 
@@ -168,8 +166,10 @@
 
                 &_option {
                     padding: 10px 0 0;
+                    text-align: center;
 
                     .option-node {
+                        display: inline-block;
                         position: relative;
                         width: 240px;
                         margin: 0 30px;
@@ -242,7 +242,7 @@
                         position: absolute;
                         left: 50%;
                         top: 0;
-                        margin-left: -10px;
+                        margin-left: -11px;
                         content: ' ';
                         background: #ffffff;
                         border: 1px solid #666;
@@ -259,7 +259,7 @@
                         position: absolute;
                         left: 50%;
                         bottom: 0;
-                        margin-left: -10px;
+                        margin-left: -11px;
                         content: ' ';
                         background: #888;
                         border-radius: 10px;
@@ -267,6 +267,37 @@
                         height: 20px;
                     }
                 }
+            }
+
+            &_task {
+
+                &.workflow-loop {
+                    padding-top: 20px;
+                    padding-bottom: 0;
+
+                    &:after {
+                        position: absolute;
+                        left: 50%;
+                        top: 10px;
+                        margin-left: -11px;
+                        content: '\f01e';
+                        font-family: "FontAwesome";
+                        font-size: 14px;
+                        text-align: center;
+                        line-height: 20px;
+                        color: #888;
+                        background: #f4f4f4;
+                        border: 1px dotted #888;
+                        border-radius: 10px;
+                        width: 20px;
+                        height: 20px;
+                    }
+                }
+            }
+
+            &_transition-to {
+                position: sticky;
+                background-color: #e4e4e4;
             }
         }
     }
@@ -276,22 +307,28 @@
         &_task, &_transition {
             position: relative;
 
-            .graph-task-bg-left, .graph-task-bg-right,
-            .graph-transition-bg-left, .graph-transition-bg-right {
+            > .graph-task-bg-left, > .graph-task-bg-right,
+            > .graph-transition-bg-left, > .graph-transition-bg-right {
                 position: absolute;
                 top: 0;
                 bottom: 0;
                 width: 50%;
+                box-sizing: content-box;
+                background-color: #e4e4e4;
             }
 
-            .graph-task--bg-left, .graph-transition-bg-left {
+            > .graph-task-bg-left, > .graph-transition-bg-left {
                 left: 0;
             }
 
-            .graph-task-bg-right, .graph-transition-bg-right {
+            > .graph-task-bg-right, > .graph-transition-bg-right {
                 right: 0;
                 border-left: 1px solid #666;
             }
+        }
+
+        &_task {
+            padding: 0 5px;
         }
 
         &_task-options {
@@ -304,20 +341,20 @@
         &_transition {
             display: inline-block;
 
-            .graph-transition-bg-left, .graph-transition-bg-right {
+            > .graph-transition-bg-left, > .graph-transition-bg-right {
                 border-top: 1px solid #666;
             }
 
             &:first-child {
 
-                .graph-transition-bg-left {
+                > .graph-transition-bg-left {
                     border-top: none;
                 }
             }
 
             &:last-child {
 
-                .graph-transition-bg-right {
+                > .graph-transition-bg-right {
                     border-top: none;
                 }
             }

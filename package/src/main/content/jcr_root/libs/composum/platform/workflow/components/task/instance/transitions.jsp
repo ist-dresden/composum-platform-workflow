@@ -5,8 +5,10 @@
 <sling:defineObjects/>
 <cpn:component id="task" type="com.composum.platform.workflow.model.WorkflowTaskInstance">
     <cpn:div test="${not empty task.options}" class="composum-platform-workflow_graph_task-options">
-        <c:forEach items="${task.options}" var="option">
-            <sling:include replaceSelectors="transition" replaceSuffix="/${option.name}"/>
-        </c:forEach>
+        <c:forEach items="${task.options}" var="option"><%
+            slingRequest.setAttribute("workflow_task_option", pageContext.findAttribute("option"));
+        %><sling:include replaceSelectors="transition" replaceSuffix="/${option.name}"/><%
+            slingRequest.removeAttribute("workflow_task_option");
+        %></c:forEach>
     </cpn:div>
 </cpn:component>

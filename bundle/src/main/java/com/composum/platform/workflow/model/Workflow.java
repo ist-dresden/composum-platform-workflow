@@ -4,11 +4,13 @@ import com.composum.platform.models.simple.LoadedModel;
 import com.composum.platform.models.simple.LoadedResource;
 import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.core.BeanContext;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Iterator;
@@ -19,6 +21,8 @@ public class Workflow extends LoadedModel {
 
     private static final Logger LOG = LoggerFactory.getLogger(Workflow.class);
 
+    public static final String RA_WORKFLOW = "workflow";
+
     private transient WorkflowService service;
 
     public class Transition {
@@ -26,11 +30,30 @@ public class Workflow extends LoadedModel {
         public final WorkflowTask from;
         public final WorkflowTask.Option option;
         public final WorkflowTask to;
+        public final String toKey;
 
-        public Transition(WorkflowTask from, WorkflowTask.Option option, WorkflowTask to) {
+        public Transition(WorkflowTask from, WorkflowTask.Option option, WorkflowTask to, String toKey) {
             this.from = from;
             this.option = option;
             this.to = to;
+            this.toKey = toKey;
+        }
+
+        public String getToKey() {
+            return StringUtils.isNotBlank(toKey) ? toKey : to != null ? to.getPath() : null;
+        }
+
+        @Override
+        public String toString() {
+            return super.toString() + "{" + from + " -> " + option.key + "(" + option.isLoop() + ") ->" + to + " }";
+        }
+
+        protected void dump(StringBuilder builder, int indent) {
+            builder.append(StringUtils.repeat(' ', indent));
+            builder.append("- ").append(this).append('\n');
+            if (to != null) {
+                Workflow.this.dump(builder, indent + 2, to);
+            }
         }
     }
 
@@ -127,6 +150,15 @@ public class Workflow extends LoadedModel {
         return subset;
     }
 
+    public Transition getTransition(WorkflowTask.Option option) {
+        for (Transition transition : transitions) {
+            if (transition.option.equals(option)) {
+                return transition;
+            }
+        }
+        return null;
+    }
+
     public void initialize(BeanContext context, Resource taskResource) {
         super.initialize(context, new LoadedResource(taskResource));
         try {
@@ -139,17 +171,9 @@ public class Workflow extends LoadedModel {
             } else {
                 buildWorkflowFromTemplates(context);
             }
+            LOG.debug("dump\n" + dump());
         } catch (Exception ex) {
             LOG.error(ex.getMessage(), ex);
-        }
-    }
-
-    protected void addTask(WorkflowTask task) {
-        String key = task instanceof WorkflowTaskInstance ? task.getName() : task.getPath();
-        if (!tasks.containsKey(key)) {
-            tasks.put(key, task);
-        } else {
-            throw new IllegalStateException("workflow contains key '" + key + "' twice; maybe a configuration loop");
         }
     }
 
@@ -182,7 +206,11 @@ public class Workflow extends LoadedModel {
      */
     protected void buildWorkflowFromInstances(@Nonnull final BeanContext context,
                                               @Nonnull final WorkflowTaskInstance task) {
-        addTask(task);
+        String name = task.getName();
+        if (tasks.containsKey(name)) {
+            throw new IllegalStateException("workflow contains instance '" + name + "' twice");
+        }
+        tasks.put(name, task);
         if (!instances.contains(task)) {
             instances.add(task);
         }
@@ -201,7 +229,7 @@ public class Workflow extends LoadedModel {
         if (nextTask != null) {
             String optionKey = task.getChosenOption();
             chosenOption = template.getOption(optionKey);
-            transitions.add(new Transition(task, chosenOption, nextTask));
+            transitions.add(new Transition(task, chosenOption, nextTask, null));
             buildWorkflowFromInstances(context, nextTask);
         }
         for (WorkflowTask.Option option : template.getOptions()) {
@@ -220,23 +248,48 @@ public class Workflow extends LoadedModel {
         WorkflowTaskTemplate task = getService().getTemplate(context, resource.getPath());
         if (task != null) {
             firstTask = task;
-            buildWorkflowFromTemplates(context, task);
+            buildWorkflowFromTemplates(context, task, null);
         }
     }
 
     protected void buildWorkflowFromTemplates(@Nonnull final BeanContext context,
-                                              @Nonnull final WorkflowTaskTemplate task) {
-        addTask(task);
-        for (WorkflowTask.Option option : task.getOptions()) {
-            addOption(context, task, option);
+                                              @Nonnull final WorkflowTaskTemplate task,
+                                              @Nullable final WorkflowTask.Option optionToTask) {
+        String key = task.getPath();
+        if (tasks.containsKey(key)) {
+            // this is a loop; it's ok but we should stop building here
+            tasks.put(getTemplateKey(task), task);
+            if (optionToTask != null) {
+                optionToTask.setIsLoop(true);
+            } else {
+                throw new IllegalStateException("unexpected template loop: '" + task.getPath() + "'");
+            }
+        } else {
+            tasks.put(key, task);
+            for (WorkflowTask.Option option : task.getOptions()) {
+                addOption(context, task, option);
+            }
         }
+    }
+
+    protected String getTemplateKey(WorkflowTaskTemplate template) {
+        if (template != null) {
+            String key = template.getPath();
+            if (tasks.containsKey(key)) {
+                int i = 0;
+                while (tasks.containsKey(key + "#" + i)) i++;
+                return key + "#" + i;
+            }
+        }
+        return null;
     }
 
     protected void addOption(@Nonnull final BeanContext context,
                              @Nonnull final WorkflowTask task, @Nonnull final WorkflowTask.Option option) {
-        transitions.add(new Transition(task, option, option.template));
-        if (option.template != null) {
-            buildWorkflowFromTemplates(context, option.template);
+        WorkflowTaskTemplate template = option.getTemplate();
+        transitions.add(new Transition(task, option, template, getTemplateKey(template)));
+        if (template != null) {
+            buildWorkflowFromTemplates(context, template, option);
         }
     }
 
@@ -293,5 +346,24 @@ public class Workflow extends LoadedModel {
             }
         }
         return row;
+    }
+
+    protected String dump() {
+        StringBuilder builder = new StringBuilder();
+        WorkflowTask task = getFirstTask();
+        dump(builder, 0, getFirstTask());
+        return builder.toString();
+    }
+
+    protected void dump(StringBuilder builder, int indent, WorkflowTask task) {
+        boolean isLoop = task instanceof WorkflowTaskTemplate && ((WorkflowTaskTemplate) task).isLoop;
+        builder.append(StringUtils.repeat(' ', indent));
+        builder.append("# ").append(task).append(isLoop ? " loop!" : " ...").append('\n');
+        if (!isLoop) {
+            List<Transition> transitions = getTransitions(task);
+            for (Transition transition : transitions) {
+                transition.dump(builder, indent + 2);
+            }
+        }
     }
 }

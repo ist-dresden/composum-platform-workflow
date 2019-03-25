@@ -18,6 +18,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static com.composum.platform.workflow.model.Workflow.RA_WORKFLOW;
+
 /**
  * the abstract base class of a task instance and a task template
  */
@@ -55,15 +57,17 @@ public abstract class WorkflowTask extends LoadedModel {
         protected final String hint;
         protected final String hintSelected;
         protected final String formType;
-        protected final WorkflowTaskTemplate template;
+        protected final String templatePath;
         protected final boolean isDefault;
+
+        private boolean isLoop = false;
+
+        private transient WorkflowTaskTemplate template;
 
         public Option(@Nonnull final Resource resource) {
             initialize(WorkflowTask.this.context, resource);
             key = resource.getName();
-            String templatePath = getProperty(PN_TEMPLATE, "");
-            template = StringUtils.isNotBlank(templatePath)
-                    ? getService().getTemplate(context, templatePath) : null;
+            templatePath = getProperty(PN_TEMPLATE, "");
             topic = getProperty(PN_TOPIC, "");
             formType = getProperty(PN_FORM_TYPE, "");
             title = i18n().get(PN_TITLE, template != null ? template.getTitle() : "");
@@ -73,7 +77,19 @@ public abstract class WorkflowTask extends LoadedModel {
         }
 
         public WorkflowTaskTemplate getTemplate() {
+            if (template == null) {
+                // lazy load to prevent from stack overflow on task loops
+                template = StringUtils.isNotBlank(templatePath)
+                        ? getService().getTemplate(context, templatePath) : null;
+                if (template != null && isLoop) {
+                    template.isLoop = true;
+                }
+            }
             return template;
+        }
+
+        public WorkflowTask getTask() {
+            return WorkflowTask.this;
         }
 
         public String getTopic() {
@@ -104,9 +120,19 @@ public abstract class WorkflowTask extends LoadedModel {
             return formType;
         }
 
+        public boolean isLoop() {
+            return isLoop;
+        }
+
+        public void setIsLoop(boolean isLoop) {
+            this.isLoop = isLoop;
+            getTemplate().isLoop = isLoop;
+        }
+
         @Override
         public boolean equals(Object other) {
-            return other instanceof Option && key.equals(((Option) other).key);
+            Option option;
+            return other instanceof Option && key.equals((option = (Option) other).key) && getTask().equals(option.getTask());
         }
 
         @Override
@@ -140,7 +166,7 @@ public abstract class WorkflowTask extends LoadedModel {
     }
 
     public Workflow getWorkflow() {
-        return (Workflow) context.getRequest().getAttribute("workflow");
+        return (Workflow) context.getRequest().getAttribute(RA_WORKFLOW);
     }
 
     public boolean isWorkflowStart() {
@@ -166,6 +192,17 @@ public abstract class WorkflowTask extends LoadedModel {
     public abstract String getTopic();
 
     @Nonnull
+    public abstract String getTitle();
+
+    @Nonnull
+    public abstract String getHint();
+
+    public abstract boolean isAutoRun();
+
+    @Nonnull
+    public abstract String getDialog();
+
+    @Nonnull
     public abstract Collection<Option> getOptions();
 
     public Calendar getCreated() {
@@ -189,7 +226,7 @@ public abstract class WorkflowTask extends LoadedModel {
         return data;
     }
 
-    public ViewValueMap getDataView(){
+    public ViewValueMap getDataView() {
         return new ViewValueMap(getData());
     }
 

@@ -19,6 +19,7 @@ public class WorkflowTaskTemplate extends WorkflowTask {
     public static final String DEFAULT_DIALOG = "composum/platform/workflow/dialog";
 
     private transient LinkedHashMap<String, Option> options;
+    protected boolean isLoop = false; // controlled by the referencing option
 
     @Override
     public void initialize(BeanContext context, Resource resource) {
@@ -26,8 +27,12 @@ public class WorkflowTaskTemplate extends WorkflowTask {
         getOptionsMap(); // preload to use the open context
     }
 
+    public boolean isWorkflowLoop() {
+        return isLoop;
+    }
+
     @Nonnull
-    public String getResourceType(){
+    public String getResourceType() {
         return TEMPLATE_TYPE;
     }
 
@@ -41,10 +46,12 @@ public class WorkflowTaskTemplate extends WorkflowTask {
         return getProperty(PN_CATEGORY, new String[0]);
     }
 
+    @Nonnull
     public String getTitle() {
         return i18n().get(PN_TITLE, getName());
     }
 
+    @Nonnull
     public String getHint() {
         return i18n().get(PN_HINT, "");
     }
@@ -57,6 +64,7 @@ public class WorkflowTaskTemplate extends WorkflowTask {
         return getProperty(PN_AUTO_RUN, Boolean.FALSE);
     }
 
+    @Nonnull
     public String getDialog() {
         return getProperty(PN_DIALOG, DEFAULT_DIALOG);
     }
@@ -98,7 +106,7 @@ public class WorkflowTaskTemplate extends WorkflowTask {
 
     @Override
     public String toString() {
-        return getPath();
+        return super.toString() + "{" + getPath() + ",loop:" + isLoop + "}";
     }
 
     @Override

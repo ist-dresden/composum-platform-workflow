@@ -70,12 +70,23 @@ public class WorkflowTaskInstance extends WorkflowTask {
         return getProperty(PN_FINISHED, Calendar.class);
     }
 
+    @Nonnull
     public String getTitle() {
         return getTemplate().getTitle();
     }
 
+    @Nonnull
     public String getHint() {
         return getTemplate().getHint();
+    }
+
+    public boolean isAutoRun() {
+        return getTemplate().isAutoRun();
+    }
+
+    @Nonnull
+    public String getDialog() {
+        return getTemplate().getDialog();
     }
 
     @Nonnull

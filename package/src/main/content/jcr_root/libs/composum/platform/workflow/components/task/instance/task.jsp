@@ -4,7 +4,7 @@
 <%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <sling:defineObjects/>
 <cpn:component id="task" type="com.composum.platform.workflow.model.WorkflowTaskInstance">
-    <div class="composum-platform-workflow_task task-instance task-state_${task.state}${task.template.autoRun?' auto-run':''}${task.current?' current-task':''}${task.workflowStart?' workflow-start':''}${task.workflowEnd?' workflow-end':''}"
+    <div class="composum-platform-workflow_task task-instance task-state_${task.state}${task.autoRun?' auto-run':''}${task.current?' current-task':''}${task.workflowStart?' workflow-start':''}${task.workflowEnd?' workflow-end':''}"
          data-path="${task.path}">
         <div class="task-node">
             <div class="meta">
@@ -13,11 +13,11 @@
                         class="icon fa fa-user-o"></span>${cpn:text(task.userId)}</cpn:div>
             </div>
             <div class="title"><span
-                    class="icon fa fa-${task.template.autoRun?'cog':'check-square-o'}"></span>${cpn:text(task.title)}
+                    class="icon fa fa-${task.autoRun?'cog':'check-square-o'}"></span>${cpn:text(task.title)}
             </div>
             <div class="hint">${cpn:rich(slingRequest,task.hint)}</div>
-            <c:if test="${not empty task.template.dialog}">
-                <div class="data"><sling:include resourceType="${task.template.dialog}"
+            <c:if test="${not empty task.dialog}">
+                <div class="data"><sling:include resourceType="${task.dialog}"
                                                  replaceSelectors="task-data"/></div>
             </c:if>
             <div class="topic"><span class="icon fa fa-play-circle-o"></span>${cpn:path(task.topic)}</div>

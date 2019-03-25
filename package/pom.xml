@@ -102,7 +102,10 @@
 
                     <filters>
                         <filter>
-                            <root>/conf/composum/platform/workflow</root>
+                            <root>/conf/composum/platform/workflow/acl</root>
+                        </filter>
+                        <filter>
+                            <root>/conf/composum/platform/workflow/mail</root>
                         </filter>
                         <filter>
                             <root>/conf/composum/workflow/everyone/decline</root>
