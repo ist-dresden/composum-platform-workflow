@@ -66,13 +66,16 @@ public interface WorkflowService {
     Configuration getConfig();
 
     /**
-     * loads a task (template) from the repository
+     * retrieves the list of available workflows
      *
      * @param context  the current request context
      * @param tenantId the related tenant (must be selected by the user)
+     * @param target   the resource context to retrieve appropriate workflows
      */
     @Nonnull
-    Iterator<WorkflowTaskInstance> findTasks(@Nonnull BeanContext context, @Nullable String tenantId);
+    Iterator<Workflow> findWorkflows(@Nonnull BeanContext context,
+                                     @Nullable String tenantId,
+                                     @Nullable Resource target);
 
     @Nullable
     Workflow getWorkflow(@Nonnull final BeanContext context, @Nonnull final Resource resource);
@@ -82,6 +85,17 @@ public interface WorkflowService {
 
     @Nonnull
     Collection<Workflow> findInitiatedWorkflows(@Nonnull BeanContext context, @Nonnull String userId);
+
+    /**
+     * retrieves the list of tasks in the requested scope
+     *
+     * @param context  the current request context
+     * @param tenantId the related tenant (must be selected by the user)
+     * @param scope    the status scope of the retrieval; default: pending
+     */
+    @Nonnull
+    Iterator<WorkflowTaskInstance> findTasks(@Nonnull BeanContext context, @Nullable String tenantId,
+                                             @Nullable WorkflowTaskInstance.State scope);
 
     /**
      * loads a task (template) from the repository

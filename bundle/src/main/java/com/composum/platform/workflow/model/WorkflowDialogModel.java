@@ -1,11 +1,9 @@
 package com.composum.platform.workflow.model;
 
-import com.composum.platform.models.simple.SimpleModel;
-import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.cpnl.CpnlElFunctions;
 import org.apache.commons.lang3.StringUtils;
 
-public class WorkflowDialogModel extends SimpleModel {
+public class WorkflowDialogModel extends WorkflowServiceModel {
 
     public static final String RUN_OPTION_URI = "/bin/cpm/platform/workflow.runTask.json";
 
@@ -16,22 +14,13 @@ public class WorkflowDialogModel extends SimpleModel {
 
     private transient WorkflowDialogAction action;
 
-    private transient WorkflowService workflowService;
-
     public String i18n(String text) {
         return CpnlElFunctions.i18n(request, text);
     }
 
-    protected WorkflowService getWorkflowService() {
-        if (workflowService == null) {
-            workflowService = context.getService(WorkflowService.class);
-        }
-        return workflowService;
-    }
-
     public WorkflowTaskInstance getTask() {
         if (task == null) {
-            task = getWorkflowService().getInstance(context, resource.getPath());
+            task = getService().getInstance(context, resource.getPath());
         }
         return task;
     }

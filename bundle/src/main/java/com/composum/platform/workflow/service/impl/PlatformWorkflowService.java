@@ -50,6 +50,8 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.composum.platform.workflow.model.Workflow.WORKFLOW_NODE;
+import static com.composum.platform.workflow.model.Workflow.WORKFLOW_TYPE;
 import static com.composum.platform.workflow.model.WorkflowTask.PN_ASSIGNEE;
 import static com.composum.platform.workflow.model.WorkflowTask.PP_COMMENTS;
 import static com.composum.platform.workflow.model.WorkflowTask.PP_DATA;
@@ -63,6 +65,7 @@ import static com.composum.platform.workflow.model.WorkflowTaskInstance.PN_FINIS
 import static com.composum.platform.workflow.model.WorkflowTaskInstance.PN_FINISHED_BY;
 import static com.composum.platform.workflow.model.WorkflowTaskInstance.PN_INITIATOR;
 import static com.composum.platform.workflow.model.WorkflowTaskInstance.PN_NEXT;
+import static com.composum.platform.workflow.model.WorkflowTaskTemplate.TEMPLATE_TYPE;
 
 @Component(
         property = {
@@ -141,27 +144,39 @@ public class PlatformWorkflowService implements WorkflowService {
     }
 
     /**
-     * loads a task (template) from the repository
+     * retrieves the list of available workflows
      *
      * @param context  the current request context
      * @param tenantId the related tenant (must be selected by the user)
+     * @param target   the resource context to retrieve appropriate workflows
      */
+    @Override
     @Nonnull
-    public Iterator<WorkflowTaskInstance> findTasks(@Nonnull final BeanContext context,
-                                                    @Nullable final String tenantId) {
-        ArrayList<WorkflowTaskInstance> tasks = new ArrayList<>();
-        Resource folder = getInstanceFolder(context, tenantId, WorkflowTaskInstance.State.pending);
-        if (folder != null) {
-            ResourceFilter filter = new TaskInstanceAssigneeFilter();
-            for (Resource entry : folder.getChildren()) {
-                if (filter.accept(entry)) {
-                    WorkflowTaskInstance task = loadTask(context, entry.getPath(), WorkflowTaskInstance.class);
-                    tasks.add(task);
+    public Iterator<Workflow> findWorkflows(@Nonnull final BeanContext context,
+                                            @Nullable final String tenantId,
+                                            @Nullable final Resource target) {
+        ArrayList<Workflow> workflows = new ArrayList<>();
+        ResourceResolver resolver = context.getResolver();
+        String query = "/jcr:root/conf//" + WORKFLOW_NODE + "[@sling:resourceType='" + WORKFLOW_TYPE + "']";
+        @SuppressWarnings("deprecation")
+        Iterator<Resource> found = resolver.findResources(query, Query.XPATH);
+        ResourceFilter resourceFilter = ResourceFilter.ALL; // TODO... new TaskInstanceAssigneeFilter();
+        while (found.hasNext()) {
+            Resource workflowResource = found.next();
+            if (resourceFilter.accept(workflowResource)) {
+                Resource templateResource = workflowResource.getParent();
+                if (templateResource != null && templateResource.isResourceType(TEMPLATE_TYPE)) {
+                    Workflow workflow = new Workflow();
+                    workflow.initialize(context, templateResource);
+                    ResourceFilter targetFilter = workflow.getTargetFilter();
+                    if (targetFilter == null || (target != null && targetFilter.accept(target))) {
+                        workflows.add(workflow);
+                    }
                 }
             }
         }
-        tasks.sort(Comparator.comparing(WorkflowTask::getDate));
-        return tasks.iterator();
+        workflows.sort(Comparator.comparing(Workflow::getTitle));
+        return workflows.iterator();
     }
 
     @Override
@@ -215,6 +230,33 @@ public class PlatformWorkflowService implements WorkflowService {
             LOG.error(ex.getMessage(), ex);
         }
         return workflows;
+    }
+
+    /**
+     * retrieves the list of tasks in the requested scope
+     *
+     * @param context  the current request context
+     * @param tenantId the related tenant (must be selected by the user)
+     * @param scope    the status scope of the retrieval; default: pending
+     */
+    @Override
+    @Nonnull
+    public Iterator<WorkflowTaskInstance> findTasks(@Nonnull final BeanContext context,
+                                                    @Nullable final String tenantId,
+                                                    @Nullable final WorkflowTaskInstance.State scope) {
+        ArrayList<WorkflowTaskInstance> tasks = new ArrayList<>();
+        Resource folder = getInstanceFolder(context, tenantId, scope != null ? scope : WorkflowTaskInstance.State.pending);
+        if (folder != null) {
+            ResourceFilter filter = new TaskInstanceAssigneeFilter();
+            for (Resource entry : folder.getChildren()) {
+                if (filter.accept(entry)) {
+                    WorkflowTaskInstance task = loadTask(context, entry.getPath(), WorkflowTaskInstance.class);
+                    tasks.add(task);
+                }
+            }
+        }
+        tasks.sort(Comparator.comparing(WorkflowTask::getDate));
+        return tasks.iterator();
     }
 
     /**

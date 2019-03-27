@@ -19,6 +19,10 @@
                 _radio: '-radio',
                 _label: '-label',
                 _form: '-form',
+                toolbar: {
+                    base: 'workflow-inbox',
+                    _toolbar: '-toolbar'
+                },
                 dialog: {
                     base: 'workflow-dialog',
                     _options: '_task-options'
@@ -26,7 +30,9 @@
             },
             url: {
                 base: '/bin/cpm/platform/workflow',
-                _dialog: '.dialog.html'
+                _dialog: '.dialog.html',
+                _start: '.startDialog.html',
+                _cancel: '.cancelTask.json'
             }
         };
 

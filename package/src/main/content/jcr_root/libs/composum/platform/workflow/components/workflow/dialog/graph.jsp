@@ -2,6 +2,6 @@
 <%@taglib prefix="sling" uri="http://sling.apache.org/taglibs/sling/1.2" %>
 <%@taglib prefix="cpn" uri="http://sling.composum.com/cpnl/1.0" %>
 <sling:defineObjects/>
-<cpn:component id="workflow" type="com.composum.platform.workflow.model.Workflow" scope="request">
+<div class="workflow-dialog_graph-content">
     <sling:include resourceType="composum/platform/workflow/components/workflow" replaceSelectors="graph"/>
-</cpn:component>
+</div>

@@ -3,11 +3,15 @@ package com.composum.platform.workflow.model;
 import com.composum.sling.core.BeanContext;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.JcrConstants;
+import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
 
 import javax.annotation.Nonnull;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
+
+import static com.composum.platform.workflow.model.Workflow.RA_WORKFLOW_CONDENSE;
 
 public class WorkflowTaskInstance extends WorkflowTask {
 
@@ -28,6 +32,7 @@ public class WorkflowTaskInstance extends WorkflowTask {
     public static final String PN_FINISHED_BY = PN_FINISHED + "By";
 
     private transient State state;
+    private transient Collection<Option> options;
     private transient WorkflowTaskTemplate template;
     private transient WorkflowTaskInstance previousTask;
     private transient WorkflowTaskInstance nextTask;
@@ -56,6 +61,10 @@ public class WorkflowTaskInstance extends WorkflowTask {
             state = getService().getState(context, getName());
         }
         return state;
+    }
+
+    public boolean isCancelled() {
+        return getState() == State.finished && getProperty(PN_CANCELLED, Calendar.class) != null;
     }
 
     /**
@@ -111,7 +120,19 @@ public class WorkflowTaskInstance extends WorkflowTask {
     @Override
     @Nonnull
     public Collection<Option> getOptions() {
-        return getTemplate().getOptions();
+        if (options == null) {
+            Workflow workflow = getWorkflow();
+            SlingHttpServletRequest request = context.getRequest();
+            if (workflow != null && request != null && (Boolean.TRUE.equals(request.getAttribute(RA_WORKFLOW_CONDENSE)))) {
+                String choosenOption = getChosenOption();
+                options = StringUtils.isNotBlank(choosenOption)
+                        ? Collections.singletonList(getTemplate().getOption(choosenOption))
+                        : getTemplate().getOptions();
+            } else {
+                options = getTemplate().getOptions();
+            }
+        }
+        return options;
     }
 
     public WorkflowTaskInstance getPreviousTask() {

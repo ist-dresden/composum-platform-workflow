@@ -81,6 +81,20 @@
             }
         });
 
+        workflow.StartDialog = core.components.FormDialog.extend({
+
+            doSubmit: function (callback) {
+                this.submitForm(callback);
+            }
+        });
+
+        workflow.CancelDialog = core.components.FormDialog.extend({
+
+            doSubmit: function (callback) {
+                this.submitForm(callback);
+            }
+        });
+
     })(window.workflow, window.core);
 
 })(window);

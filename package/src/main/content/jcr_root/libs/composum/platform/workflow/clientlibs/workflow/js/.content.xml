@@ -4,4 +4,4 @@
         depends="[category:composum.components.widgets]"
         embed="[/libs/composum/platform/workflow/components/js/base.js,
                 /libs/composum/platform/workflow/dialog/js/dialog.js,
-                /libs/composum/platform/workflow/components/js/components.js]"/>
+                /libs/composum/platform/workflow/components/js/inbox.js]"/>

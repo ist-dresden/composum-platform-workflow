@@ -4,26 +4,43 @@ import com.composum.platform.models.simple.LoadedModel;
 import com.composum.platform.models.simple.LoadedResource;
 import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.core.BeanContext;
+import com.composum.sling.core.filter.ResourceFilter;
+import com.composum.sling.core.mapping.jcr.ResourceFilterMapping;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ValueMap;
+import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+
+import static com.composum.platform.workflow.model.WorkflowTask.PN_HINT;
+import static com.composum.platform.workflow.model.WorkflowTask.PN_TITLE;
 
 public class Workflow extends LoadedModel {
 
     private static final Logger LOG = LoggerFactory.getLogger(Workflow.class);
 
-    public static final String RA_WORKFLOW = "workflow";
+    public static final String WORKFLOW_TYPE = "composum/platform/workflow";
+    public static final String WORKFLOW_NODE = "workflow";
 
-    private transient WorkflowService service;
+    public static final String SELECTOR_CONDENSE = "condense";
+
+    public static final String PN_AUTHORIZED = "authorized";
+    public static final String PN_TARGET_FILTER = "targetFilter";
+
+    public static final String RA_WORKFLOW = "workflow";
+    public static final String RA_WORKFLOW_CONDENSE = RA_WORKFLOW + "_condense";
 
     public class Transition {
 
@@ -67,7 +84,9 @@ public class Workflow extends LoadedModel {
     protected WorkflowTask firstTask;
     protected WorkflowTaskInstance lastTask;
 
-    private transient List<List<WorkflowTask>> rows;
+    private transient ValueMap values;
+
+    private transient WorkflowService service;
 
     /**
      * @return 'true' if the workflow is built from task templates only
@@ -150,9 +169,9 @@ public class Workflow extends LoadedModel {
         return subset;
     }
 
-    public Transition getTransition(WorkflowTask.Option option) {
+    public Transition getTransition(Resource resFrom, WorkflowTask.Option option) {
         for (Transition transition : transitions) {
-            if (transition.option.equals(option)) {
+            if (transition.from.getPath().equals(resFrom.getPath()) && transition.option.equals(option)) {
                 return transition;
             }
         }
@@ -168,13 +187,88 @@ public class Workflow extends LoadedModel {
                 firstTask = taskInstance;
                 created = taskInstance.getCreated();
                 buildWorkflowFromInstances(context, taskInstance);
+                this.resource = new LoadedResource(taskInstance.getTemplate().getResource());
+                SlingHttpServletRequest request = context.getRequest();
+                if (request != null) {
+                    List<String> selectors = Arrays.asList(request.getRequestPathInfo().getSelectors());
+                    if (selectors.contains(SELECTOR_CONDENSE)) {
+                        request.setAttribute(RA_WORKFLOW_CONDENSE, Boolean.TRUE);
+                    }
+                }
             } else {
                 buildWorkflowFromTemplates(context);
+                this.resource = new LoadedResource(firstTask.getResource());
             }
-            LOG.debug("dump\n" + dump());
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("dump\n" + dump());
+            }
         } catch (Exception ex) {
             LOG.error(ex.getMessage(), ex);
         }
+    }
+
+    @Override
+    protected ValueMap getValues() {
+        if (values == null) {
+            Resource workflowResource = resource.getChild(WORKFLOW_NODE);
+            values = workflowResource != null
+                    ? new WorkflowNodeValues(workflowResource.getValueMap())
+                    : resource.getValueMap();
+        }
+        return values;
+    }
+
+    protected class WorkflowNodeValues extends ValueMapDecorator {
+
+        public WorkflowNodeValues(Map<String, Object> base) {
+            super(base);
+        }
+
+        public <T> T get(@Nonnull String name, @Nonnull Class<T> type) {
+            T value = super.get(name, type);
+            if (value == null) {
+                value = resource.getValueMap().get(name, type);
+            }
+            return value;
+        }
+
+        @SuppressWarnings("unchecked")
+        @Nonnull
+        public <T> T get(@Nonnull String name, @Nonnull T defaultValue) {
+            T value = get(name, (Class<T>) defaultValue.getClass());
+            return value == null ? defaultValue : value;
+        }
+    }
+
+    @Nonnull
+    public String getName() {
+        return this.firstTask != null ? this.firstTask.getName() : "";
+    }
+
+    @Nonnull
+    public String getPath() {
+        return this.firstTask != null ? this.firstTask.getPath() : "";
+    }
+
+    @Nonnull
+    public String getTitle() {
+        return i18n().get(PN_TITLE, getName());
+    }
+
+    @Nonnull
+    public String getHint() {
+        return i18n().get(PN_HINT, "");
+    }
+
+    @Nullable
+    public String getAuthorized() {
+        return resource.getValueMap().get(PN_AUTHORIZED, String.class);
+    }
+
+    @Nullable
+    public ResourceFilter getTargetFilter() {
+        String filterRule = resource.getValueMap().get(PN_TARGET_FILTER, String.class);
+        return StringUtils.isNotBlank(filterRule) ? ResourceFilterMapping.fromString(filterRule) : null;
     }
 
     // build from instances
@@ -316,36 +410,6 @@ public class Workflow extends LoadedModel {
     @Override
     public int hashCode() {
         return getFirstTask().hashCode();
-    }
-
-    @Nonnull
-    public List<List<WorkflowTask>> getRows() {
-        if (rows == null) {
-            rows = new ArrayList<>();
-            WorkflowTask firstTask = getFirstTask();
-            if (firstTask != null) {
-                List<WorkflowTask> row = new ArrayList<>();
-                row.add(getFirstTask());
-                rows.add(row);
-                while ((row = buildRow(row)).size() > 0) {
-                    rows.add(row);
-                }
-            }
-        }
-        return rows;
-    }
-
-    @Nonnull
-    protected List<WorkflowTask> buildRow(@Nonnull final List<WorkflowTask> above) {
-        List<WorkflowTask> row = new ArrayList<>();
-        for (WorkflowTask task : above) {
-            for (Transition transition : getTransitions(task)) {
-                if (transition.to != null) {
-                    row.add(transition.to);
-                }
-            }
-        }
-        return row;
     }
 
     protected String dump() {

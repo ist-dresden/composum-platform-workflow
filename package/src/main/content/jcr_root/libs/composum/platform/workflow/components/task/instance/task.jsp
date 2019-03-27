@@ -4,7 +4,7 @@
 <%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <sling:defineObjects/>
 <cpn:component id="task" type="com.composum.platform.workflow.model.WorkflowTaskInstance">
-    <div class="composum-platform-workflow_task task-instance task-state_${task.state}${task.autoRun?' auto-run':''}${task.current?' current-task':''}${task.workflowStart?' workflow-start':''}${task.workflowEnd?' workflow-end':''}"
+    <div class="composum-platform-workflow_task task-instance task-state_${task.cancelled?'cancelled':task.state}${task.autoRun?' auto-run':''}${task.current?' current-task':''}${task.workflowStart?' workflow-start':''}${task.workflowEnd?' workflow-end':''}"
          data-path="${task.path}">
         <div class="task-node">
             <div class="meta">

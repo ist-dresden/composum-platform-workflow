@@ -64,6 +64,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
 
     public static final String PARAM_TENANT_ID = "tenant.id";
     public static final String PARAM_TEMPLATE = "wf.template";
+    public static final String PARAM_TARGET = "wf.target";
     public static final String PARAM_OPTION = "wf.option";
     public static final String PARAM_COMMENT = "wf.comment";
 
@@ -87,7 +88,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
     }
 
     public enum Operation {
-        dialog, addTask, runTask
+        dialog, startDialog, addTask, runTask, cancelTask
     }
 
     protected TenantsOperationSet operations = new TenantsOperationSet();
@@ -109,12 +110,16 @@ public class WorkflowServlet extends AbstractServiceServlet {
         // GET
         operations.setOperation(ServletOperationSet.Method.GET, Extension.json,
                 Operation.dialog, new GetDialogOperation());
+        operations.setOperation(ServletOperationSet.Method.GET, Extension.json,
+                Operation.startDialog, new GetStartDialogOperation());
 
         // POST
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json,
                 Operation.addTask, new AddTaskOperation());
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json,
                 Operation.runTask, new RunTaskOperation());
+        operations.setOperation(ServletOperationSet.Method.POST, Extension.json,
+                Operation.cancelTask, new CancelTaskOperation());
     }
 
     public class TenantsOperationSet extends ServletOperationSet<Extension, Operation> {
@@ -154,6 +159,25 @@ public class WorkflowServlet extends AbstractServiceServlet {
             } else {
                 sendError(LOG::info, response, HttpServletResponse.SC_BAD_REQUEST,
                         i18n(request, "no task found at") + " '" + resource.getPath() + "'");
+            }
+        }
+    }
+
+    public class GetStartDialogOperation implements ServletOperation {
+
+        @Override
+        public void doIt(@Nonnull final SlingHttpServletRequest request,
+                         @Nonnull final SlingHttpServletResponse response,
+                         @Nonnull final ResourceHandle resource)
+                throws ServletException, IOException {
+            RequestDispatcherOptions options = new RequestDispatcherOptions();
+            options.setForceResourceType("composum/platform/workflow/components/workflow/start");
+            RequestDispatcher dispatcher = request.getRequestDispatcher(resource, options);
+            if (dispatcher != null) {
+                dispatcher.forward(request, response);
+            } else {
+                sendError(LOG::error, response, SC_INTERNAL_SERVER_ERROR,
+                        i18n(request, "can't forward request") + " '" + request.getRequestPathInfo().getSuffix() + "'");
             }
         }
     }
@@ -217,7 +241,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
                                     ? i18n(request, "invalid option") + "!? '" + optionKey + "'"
                                     : i18n(request, "default option used")), null);
                 } else {
-                    jsonStatus(request, response, false, "Failed", i18n(request, "task job creation failed"), null);
+                    jsonStatus(request, response, false, i18n(request, "Failed"), i18n(request, "task job creation failed"), null);
                 }
             } catch (PersistenceException ex) {
                 LOG.error(ex.getMessage(), ex);
@@ -227,6 +251,34 @@ public class WorkflowServlet extends AbstractServiceServlet {
     }
 
     /**
+     * cancels a task
+     */
+    public class CancelTaskOperation implements ServletOperation {
+
+        @Override
+        public void doIt(@Nonnull final SlingHttpServletRequest request,
+                         @Nonnull final SlingHttpServletResponse response,
+                         @Nonnull final ResourceHandle resource)
+                throws IOException {
+            try {
+                BeanContext context = new BeanContext.Servlet(getServletContext(), bundleContext, request, response);
+                String comment = request.getParameter(PARAM_COMMENT);
+                WorkflowTaskInstance taskInstance = workflowService.finishTask(context, resource.getPath(),
+                        true, comment, getTaskData(request), null);
+                if (taskInstance != null) {
+                    jsonStatus(request, response, true, i18n(request, "Success"), i18n(request, "task cancellation done"), null);
+                } else {
+                    jsonStatus(request, response, false, i18n(request, "Failed"), i18n(request, "task cancellation failed"), null);
+                }
+            } catch (PersistenceException ex) {
+                LOG.error(ex.getMessage(), ex);
+                jsonStatus(request, response, false, i18n(request, "Failed"), ex.getMessage(), null);
+            }
+        }
+    }
+
+    /**
+     * // FIXME check reuse of the Sling POST servlet function
      * collects all parameters named 'data/{property-name}[@Delete]' and returns the map of 'data' properties
      * from the request; a property marked for deletion ('@Delete' postfix) is stored with value 'null'
      *

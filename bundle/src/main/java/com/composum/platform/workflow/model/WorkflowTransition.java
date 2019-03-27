@@ -63,7 +63,7 @@ public class WorkflowTransition implements SlingBean {
             if (workflow != null) {
                 WorkflowTask.Option option = (WorkflowTask.Option) request.getAttribute(RA_TASK_OPTION);
                 if (option != null) {
-                    transition = workflow.getTransition(option);
+                    transition = workflow.getTransition(initialResource,option);
                 }
                 if (transition == null) {
                     String suffix = context.getRequest().getRequestPathInfo().getSuffix();
