@@ -122,5 +122,54 @@
   {
     "path": "/var/composum/workflow/platform",
     "jcr:primaryType": "sling:Folder"
+  },
+  {
+    "path": "/home",
+    "acl": [
+      {
+        "principal": "composum-platform-workflow-service",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:read",
+            "restrictions": {
+              "rep:glob": ""
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "path": "/home/groups",
+    "acl": [
+      {
+        "principal": "composum-platform-workflow-service",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:read",
+            "restrictions": {
+              "rep:glob": ""
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "path": "/home/groups/tenants",
+    "jcr:primaryType": "rep:AuthorizableFolder",
+    "acl": [
+      {
+        "principal": "composum-platform-workflow-service",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:read"
+          }
+        ]
+      }
+    ]
   }
 ]

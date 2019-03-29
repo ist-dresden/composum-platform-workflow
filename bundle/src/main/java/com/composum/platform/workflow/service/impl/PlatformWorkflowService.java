@@ -9,11 +9,17 @@ import com.composum.platform.workflow.model.WorkflowTaskTemplate;
 import com.composum.platform.workflow.service.WorkflowActionManager;
 import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.core.BeanContext;
+import com.composum.sling.core.SlingBean;
 import com.composum.sling.core.filter.ResourceFilter;
 import com.composum.sling.core.service.PermissionsService;
 import com.composum.sling.core.util.ResourceUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.JcrConstants;
+import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.user.Authorizable;
+import org.apache.jackrabbit.api.security.user.Group;
+import org.apache.jackrabbit.api.security.user.UserManager;
+import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -21,6 +27,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
+import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Activate;
@@ -44,12 +51,15 @@ import java.util.Comparator;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.composum.platform.workflow.model.Workflow.RA_WORKFLOW;
 import static com.composum.platform.workflow.model.Workflow.WORKFLOW_NODE;
 import static com.composum.platform.workflow.model.Workflow.WORKFLOW_TYPE;
 import static com.composum.platform.workflow.model.WorkflowTask.PN_ASSIGNEE;
@@ -65,6 +75,7 @@ import static com.composum.platform.workflow.model.WorkflowTaskInstance.PN_FINIS
 import static com.composum.platform.workflow.model.WorkflowTaskInstance.PN_FINISHED_BY;
 import static com.composum.platform.workflow.model.WorkflowTaskInstance.PN_INITIATOR;
 import static com.composum.platform.workflow.model.WorkflowTaskInstance.PN_NEXT;
+import static com.composum.platform.workflow.model.WorkflowTaskInstance.PN_TEMPLATE;
 import static com.composum.platform.workflow.model.WorkflowTaskTemplate.TEMPLATE_TYPE;
 
 @Component(
@@ -166,11 +177,12 @@ public class PlatformWorkflowService implements WorkflowService {
             if (resourceFilter.accept(workflowResource)) {
                 Resource templateResource = workflowResource.getParent();
                 if (templateResource != null && templateResource.isResourceType(TEMPLATE_TYPE)) {
-                    Workflow workflow = new Workflow();
-                    workflow.initialize(context, templateResource);
-                    ResourceFilter targetFilter = workflow.getTargetFilter();
-                    if (targetFilter == null || (target != null && targetFilter.accept(target))) {
-                        workflows.add(workflow);
+                    Workflow workflow = loadWorkflow(context, templateResource.getPath());
+                    if (workflow != null) {
+                        ResourceFilter targetFilter = workflow.getTargetFilter();
+                        if (targetFilter == null || (target != null && targetFilter.accept(target))) {
+                            workflows.add(workflow);
+                        }
                     }
                 }
             }
@@ -182,9 +194,8 @@ public class PlatformWorkflowService implements WorkflowService {
     @Override
     @Nullable
     public Workflow getWorkflow(@Nonnull final BeanContext context, @Nonnull final Resource resource) {
-        Workflow workflow = new Workflow();
-        workflow.initialize(context, resource);
-        return workflow.isHollow() ? null : workflow;
+        Workflow workflow = loadWorkflow(context, resource.getPath());
+        return workflow == null || workflow.isHollow() ? null : workflow;
     }
 
     @Override
@@ -250,7 +261,7 @@ public class PlatformWorkflowService implements WorkflowService {
             ResourceFilter filter = new TaskInstanceAssigneeFilter();
             for (Resource entry : folder.getChildren()) {
                 if (filter.accept(entry)) {
-                    WorkflowTaskInstance task = loadTask(context, entry.getPath(), WorkflowTaskInstance.class);
+                    WorkflowTaskInstance task = loadInstance(context, entry.getPath());
                     tasks.add(task);
                 }
             }
@@ -343,17 +354,18 @@ public class PlatformWorkflowService implements WorkflowService {
                                         @Nullable final String comment, @Nullable final Map<String, Object> data,
                                         @Nullable final MetaData actionMetaData) {
         WorkflowTaskInstance taskInstance = null;
-        final WorkflowTaskTemplate template = loadTask(context, taskTemplate, WorkflowTaskTemplate.class);
+        final WorkflowTaskTemplate template = loadTemplate(context, taskTemplate);
         if (template != null) {
             if (LOG.isDebugEnabled()) {
                 LOG.debug("addTask; '{}'...", taskTemplate);
             }
-            try (final ServiceContext serviceContext = new ServiceContext(context)) {
+            try (final ServiceContext serviceContext = new ServiceContext(
+                    context instanceof ServiceContext ? ((ServiceContext) context).getRequestContext() : context)) {
                 final WorkflowTaskInstance previous = previousTask != null
-                        ? loadTask(serviceContext, previousTask, WorkflowTaskInstance.class) : null;
+                        ? loadInstance(serviceContext, previousTask) : null;
                 final MetaData metaData = getMetaData(actionMetaData, serviceContext, tenantId, previous);
                 String initiator = (String) metaData.get(META_USER_ID);
-                String assignee = metaData.getValue(template.getAssignee());
+                String assignee = adjustAssignee(serviceContext, metaData.getValue(template.getAssignee()), Group.class);
                 Map<String, Object> properties = new HashMap<>();
                 properties.put(JcrConstants.JCR_PRIMARYTYPE, ResourceUtil.TYPE_SLING_FOLDER);
                 properties.put(ResourceUtil.PROP_RESOURCE_TYPE, INSTANCE_TYPE);
@@ -375,7 +387,7 @@ public class PlatformWorkflowService implements WorkflowService {
                 String path = folder.getPath() + "/" + name;
                 Resource taskResource = serviceContext.getResolver().create(folder, name, properties);
                 Resource taskData = serviceContext.getResolver().create(taskResource, PP_DATA, SUBNODE_PROPERTIES);
-                taskInstance = loadTask(serviceContext, path, WorkflowTaskInstance.class);
+                taskInstance = loadInstance(serviceContext, path);
                 if (taskInstance != null) {
                     changeTaskData(serviceContext, taskInstance, PP_DATA, template.getData(), metaData);
                     if (previous != null) {
@@ -448,14 +460,19 @@ public class PlatformWorkflowService implements WorkflowService {
         WorkflowTaskInstance result = null;
         WorkflowTaskInstance task = loadInstance(context, taskInstancePath);
         if (task != null) {
-            if (new TaskInstanceAssigneeFilter().accept(task.getResource())) {
-                try (final ServiceContext serviceContext = new ServiceContext(context)) {
-                    result = runTask(serviceContext, task, option, comment, data, actionMetaData, true);
-                } catch (LoginException ex) {
-                    LOG.error(ex.toString());
+            if (task.getState() == WorkflowTaskInstance.State.pending) {
+                if (new TaskInstanceAssigneeFilter().accept(task.getResource())) {
+                    try (final ServiceContext serviceContext = new ServiceContext(context)) {
+                        result = runTask(serviceContext, task, option, comment, data, actionMetaData, true);
+                    } catch (LoginException ex) {
+                        LOG.error(ex.toString());
+                    }
+                } else {
+                    LOG.error("insufficient privileges: '{}' ({})", context.getResolver().getUserID(), taskInstancePath);
                 }
             } else {
-                LOG.error("insufficient privileges: '{}' ({})", context.getResolver().getUserID(), taskInstancePath);
+                LOG.error("can't run task in state: '{}' ({})", task.getState(), taskInstancePath);
+                throw new PersistenceException("can't run task, task not pending");
             }
         } else {
             LOG.error("task not available: '{}'", taskInstancePath);
@@ -481,7 +498,7 @@ public class PlatformWorkflowService implements WorkflowService {
         Resource runningFolder = giveInstanceFolder(serviceContext, getTenantId(taskInstance.getResource()),
                 WorkflowTaskInstance.State.running);
         Resource moved = serviceContext.getResolver().move(taskInstance.getPath(), runningFolder.getPath());
-        taskInstance = loadTask(serviceContext, moved, WorkflowTaskInstance.class);
+        taskInstance = loadInstance(serviceContext, moved.getPath());
         if (taskInstance != null) {
             addTaskComment(serviceContext, taskInstance, comment);
             changeTaskData(serviceContext, taskInstance, PP_DATA, data, metaData);
@@ -495,7 +512,7 @@ public class PlatformWorkflowService implements WorkflowService {
             if (commit) {
                 serviceContext.getResolver().commit();
             }
-            WorkflowAction.Result result = processAction(serviceContext.getRequestContext(), taskInstance, optionKey, comment, metaData);
+            WorkflowAction.Result result = processAction(serviceContext, taskInstance, optionKey, comment, metaData);
             if (result.getStatus() != WorkflowAction.Status.failure) {
                 taskInstance = finishTask(serviceContext, taskInstance,
                         result.getStatus() == WorkflowAction.Status.cancel, null, null, metaData);
@@ -506,7 +523,7 @@ public class PlatformWorkflowService implements WorkflowService {
         return taskInstance;
     }
 
-    WorkflowAction.Result processAction(@Nonnull final BeanContext context,
+    WorkflowAction.Result processAction(@Nonnull final ServiceContext serviceContext,
                                         @Nonnull final WorkflowTaskInstance taskInstance,
                                         @Nullable final String optionKey, @Nullable final String comment,
                                         @Nonnull final MetaData actionMetaData) {
@@ -514,12 +531,30 @@ public class PlatformWorkflowService implements WorkflowService {
         WorkflowTaskTemplate.Option option = taskInstance.getTemplate().getOption(optionKey);
         String topic = taskInstance.getTopic();
         if (StringUtils.isNotBlank(topic)) {
-            result.merge(processAction(topic, context, taskInstance, option, comment, actionMetaData));
+            result.merge(processAction(topic, serviceContext.getRequestContext(), taskInstance, option, comment, actionMetaData));
         }
         if (option != null && result.getStatus() == WorkflowAction.Status.success) {
             topic = option.getTopic();
             if (StringUtils.isNotBlank(topic)) {
-                result.merge(processAction(topic, context, taskInstance, option, comment, actionMetaData));
+                result.merge(processAction(topic, serviceContext.getRequestContext(), taskInstance, option, comment, actionMetaData));
+            }
+            if (result.getStatus() == WorkflowAction.Status.success) {
+                WorkflowTaskTemplate template = option.getTemplate();
+                if (template != null) {
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("creating next task; '{}.{}' -> '{}'...", taskInstance, option.getName(), template.getPath());
+                    }
+                    WorkflowTaskInstance added = addTask(serviceContext, null,
+                            taskInstance.getPath(), template.getPath(), comment, option.getData(), actionMetaData);
+                    if (added == null) {
+                        LOG.error("creation of next task of template '{}' failed", template.getPath());
+                        return new WorkflowAction.Result(WorkflowAction.Status.failure);
+                    }
+                } else {
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("no following task declared; '{}.{}'", taskInstance, option.getName());
+                    }
+                }
             }
         }
         return result;
@@ -579,19 +614,24 @@ public class PlatformWorkflowService implements WorkflowService {
             throws PersistenceException {
         WorkflowTaskInstance taskInstance = loadInstance(context, taskInstancePath);
         if (taskInstance != null) {
-            Session session = context.getResolver().adaptTo(Session.class);
-            if (session != null) {
-                if (permissionsService.hasAllPrivileges(session, taskInstancePath, WRITE_PRIVILEGE_KEY)) {
-                    try (final ServiceContext serviceContext = new ServiceContext(context)) {
-                        taskInstance = finishTask(serviceContext, taskInstance, cancelled, comment, data, actionMetaData);
-                    } catch (LoginException ex) {
-                        LOG.error(ex.toString());
+            if (taskInstance.getState() != WorkflowTaskInstance.State.finished) {
+                Session session = context.getResolver().adaptTo(Session.class);
+                if (session != null) {
+                    if (permissionsService.hasAllPrivileges(session, taskInstancePath, WRITE_PRIVILEGE_KEY)) {
+                        try (final ServiceContext serviceContext = new ServiceContext(context)) {
+                            taskInstance = finishTask(serviceContext, taskInstance, cancelled, comment, data, actionMetaData);
+                        } catch (LoginException ex) {
+                            LOG.error(ex.toString());
+                        }
+                    } else {
+                        throw new PersistenceException("insufficient privileges");
                     }
                 } else {
-                    throw new PersistenceException("insufficient privileges");
+                    throw new IllegalStateException("can't adapt resolver to session");
                 }
             } else {
-                throw new IllegalStateException("can't adapt resolver to session");
+                LOG.error("finish request for a finished task ({})", taskInstancePath);
+                throw new PersistenceException("task is finished already");
             }
         } else {
             LOG.error("task instance not available: '{}'", taskInstancePath);
@@ -623,7 +663,7 @@ public class PlatformWorkflowService implements WorkflowService {
         Resource finishedFolder = giveInstanceFolder(serviceContext, getTenantId(taskInstance.getResource()),
                 WorkflowTaskInstance.State.finished);
         Resource moved = serviceContext.getResolver().move(taskInstance.getPath(), finishedFolder.getPath());
-        taskInstance = loadTask(serviceContext, moved, WorkflowTaskInstance.class);
+        taskInstance = loadInstance(serviceContext, moved.getPath());
         if (taskInstance != null) {
             addTaskComment(serviceContext, taskInstance, comment);
             changeTaskData(serviceContext, taskInstance, PP_DATA, data, metaData);
@@ -686,9 +726,8 @@ public class PlatformWorkflowService implements WorkflowService {
         Iterator<Resource> finished = resolver.findResources(query, Query.XPATH);
         while (finished.hasNext()) {
             Resource taskResource = finished.next();
-            Workflow workflow = new Workflow();
-            workflow.initialize(context, taskResource);
-            if (workflow.isHollow()) {
+            Workflow workflow = loadWorkflow(context, taskResource.getPath());
+            if (workflow == null || workflow.isHollow()) {
                 LOG.error("can't load workflow of task '{}'", taskResource.getPath());
             } else {
                 if (workflow.isFinished()) {
@@ -748,7 +787,7 @@ public class PlatformWorkflowService implements WorkflowService {
      * @param data    the properties to change / to remove (removed if value is 'null')
      * @param meta    the current operation meta data (tenant, user, ...)
      */
-    protected void changeTaskData(@Nonnull final ServiceContext context,
+    protected void changeTaskData(@Nonnull final BeanContext context,
                                   @Nonnull final WorkflowTaskInstance task, @Nullable final String subPath,
                                   @Nullable final Map<String, Object> data, @Nullable final MetaData meta)
             throws PersistenceException {
@@ -774,7 +813,7 @@ public class PlatformWorkflowService implements WorkflowService {
         if (data != null) {
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 Object value = entry.getValue();
-                if (value != null) {
+                if (value != null && !DATA_KEY_REMOVE.equals(value)) {
                     if (meta != null) {
                         if (value instanceof String) {
                             value = meta.getValue((String) value);
@@ -834,43 +873,261 @@ public class PlatformWorkflowService implements WorkflowService {
         return metaData;
     }
 
-    @Nullable
-    protected WorkflowTaskInstance loadInstance(@Nonnull final BeanContext context,
-                                                @Nonnull final String pathOrId) {
-        return loadTask(context, pathOrId, WorkflowTaskInstance.class);
+    // BeanFactory
+
+    @Nonnull
+    @Override
+    public SlingBean createBean(@Nonnull BeanContext context, @Nonnull Resource resource,
+                                @Nonnull Class<? extends SlingBean> type)
+            throws InstantiationException {
+        SlingBean result = null;
+        SlingHttpServletRequest request = context.getRequest();
+        // use service resolver to build the entire graph even if the access is not allowed
+        Workflow workflow = (Workflow) request.getAttribute(RA_WORKFLOW);
+        if (WorkflowTaskInstance.class.isAssignableFrom(type)) {
+            result = workflow != null
+                    ? loadInstanceRef(context, resource.getPath())
+                    : loadInstance(context, resource.getPath());
+        } else if (WorkflowTaskTemplate.class.isAssignableFrom(type)) {
+            result = workflow != null
+                    ? loadTemplateRef(context, resource.getPath())
+                    : loadTemplate(context, resource.getPath());
+        } else if (Workflow.class.isAssignableFrom(type)) {
+            result = workflow != null ? workflow : loadWorkflow(context, resource.getPath());
+        }
+        if (result == null) {
+            throw new InstantiationException("can't create instance of '" + type + "' for resource '" + resource.getPath() + "'");
+        }
+        return result;
+    }
+
+    protected class ServiceTaskInstance extends WorkflowTaskInstance {
+
+        public ServiceTaskInstance(WorkflowTaskTemplate template, State state) {
+            super(template, state);
+        }
+
+        @Override
+        protected WorkflowTaskInstance getTask(String propertyName) {
+            String taskRefId = getProperty(propertyName, String.class);
+            return StringUtils.isNotBlank(taskRefId) ? loadInstanceRef(context, taskRefId) : null;
+        }
+
+        /**
+         * @return 'true' if it's allowed to cancel the task processing
+         */
+        @Override
+        public boolean isCancellingAllowed() {
+            Session session;
+            return state != State.finished
+                    && (session = context.getResolver().adaptTo(Session.class)) != null
+                    && permissionsService.hasAllPrivileges(session, getResource().getPath(), WRITE_PRIVILEGE_KEY);
+        }
+
+        /**
+         * @return 'true' if it's possible to show a workflow graph from this instance
+         */
+        @Override
+        public boolean isGraphAvailable() {
+            return !(getTemplate() instanceof ServiceTaskTemplateRef);
+        }
+    }
+
+    protected class ServiceTaskInstanceRef extends ServiceTaskInstance {
+
+        public ServiceTaskInstanceRef(WorkflowTaskTemplate template, State state) {
+            super(template, state);
+        }
+
+        @Override
+        @Nonnull
+        public ValueMap getData() {
+            return new ValueMapDecorator(Collections.emptyMap());
+        }
+    }
+
+    protected class ServiceTaskTemplate extends WorkflowTaskTemplate {
+
+        protected boolean isLoop = false; // controlled by the referencing option
+
+        @Override
+        @Nonnull
+        public Option createOption(Resource resource) {
+            return new ServiceOption(resource);
+        }
+
+        @Override
+        public boolean isWorkflowLoop() {
+            return isLoop;
+        }
+
+        protected class ServiceOption extends Option {
+
+            private transient ServiceTaskTemplate template;
+
+            public ServiceOption(@Nonnull Resource resource) {
+                super(resource);
+            }
+
+            @Override
+            @Nullable
+            public WorkflowTaskTemplate getTemplate() {
+                if (template == null) {
+                    // lazy load to prevent from stack overflow on task loops
+                    template = StringUtils.isNotBlank(templatePath)
+                            ? loadTemplateRef(context instanceof ServiceContext
+                            ? ((ServiceContext) context).getRequestContext() : context, templatePath) : null;
+                    if (template != null && isLoop) {
+                        template.isLoop = true;
+                    }
+                }
+                return template;
+            }
+
+            @Override
+            public void setIsLoop(boolean isLoop) {
+                this.isLoop = isLoop;
+                template.isLoop = isLoop;
+            }
+        }
+    }
+
+    protected class ServiceTaskTemplateRef extends ServiceTaskTemplate {
+
+        @Override
+        @Nonnull
+        public ValueMap getData() {
+            return new ValueMapDecorator(Collections.emptyMap());
+        }
+
+        @Nonnull
+        public String getDialog() {
+            return DEFAULT_DIALOG;
+        }
+    }
+
+    protected class ServiceWorkflow extends Workflow {
+
+        protected LinkedHashMap<String, WorkflowTask> tasks = new LinkedHashMap<>();
+        protected boolean restricted = false;
+
+        @Override
+        public boolean isRestricted() {
+            return restricted;
+        }
+
+        @Override
+        @Nonnull
+        public LinkedHashMap<String, WorkflowTask> getTasks() {
+            return tasks;
+        }
+
+        @Override
+        protected void addInstance(@Nonnull WorkflowTaskInstance task) {
+            String name = task.getName();
+            if (tasks.containsKey(name)) {
+                throw new IllegalStateException("workflow contains instance '" + name + "' twice");
+            }
+            tasks.put(name, task);
+            if (task instanceof ServiceTaskInstanceRef) {
+                restricted = true;
+            }
+        }
+
+        @Override
+        protected void addTemplate(@Nonnull WorkflowTaskTemplate template, @Nonnull String key) {
+            tasks.put(key, template);
+            if (template instanceof ServiceTaskTemplateRef) {
+                restricted = true;
+            }
+        }
+
+        @Override
+        protected WorkflowService getService() {
+            return PlatformWorkflowService.this;
+        }
     }
 
     @Nullable
-    protected WorkflowTaskTemplate loadTemplate(@Nonnull final BeanContext context,
-                                                @Nonnull final String path) {
-        return loadTask(context, path, WorkflowTaskTemplate.class);
-    }
-
-    @Nullable
-    protected <T extends WorkflowTask> T loadTask(@Nonnull final BeanContext context,
-                                                  @Nonnull final String pathOrId,
-                                                  @Nonnull Class<T> type) {
+    protected ServiceTaskInstance loadInstance(@Nonnull final BeanContext context,
+                                               @Nonnull final String pathOrId) {
+        ServiceTaskInstance taskInstance = null;
         Resource resource = getTaskResource(context, pathOrId);
         if (resource != null) {
-            return loadTask(context, resource, type);
+            taskInstance = new ServiceTaskInstance(loadTemplateRef(context,
+                    resource.getValueMap().get(PN_TEMPLATE, "")), getState(resource));
+            taskInstance.initialize(context, resource);
         }
+        return taskInstance;
+    }
 
-        return null;
+    /**
+     * a reference to ain instance should be accessible even if the user has no access
+     */
+    @Nullable
+    protected ServiceTaskInstance loadInstanceRef(@Nonnull final BeanContext context,
+                                                  @Nonnull final String pathOrId) {
+        ServiceTaskInstance taskInstance = loadInstance(context, pathOrId);
+        if (taskInstance == null) {
+            try (final ServiceContext serviceContext = new ServiceContext(context instanceof ServiceContext
+                    ? ((ServiceContext) context).getRequestContext() : context)) {
+                Resource resource = getTaskResource(serviceContext, pathOrId);
+                if (resource != null) {
+                    taskInstance = new ServiceTaskInstanceRef(loadTemplateRef(context,
+                            resource.getValueMap().get(PN_TEMPLATE, "")), getState(resource));
+                    taskInstance.initialize(context, resource);
+                }
+            } catch (Exception ex) {
+                LOG.error(ex.getMessage(), ex);
+            }
+        }
+        return taskInstance;
     }
 
     @Nullable
-    protected <T extends WorkflowTask> T loadTask(@Nonnull final BeanContext context,
-                                                  @Nonnull final Resource resource,
-                                                  @Nonnull Class<T> type) {
-        T task;
-        try {
-            task = type.newInstance();
-            task.initialize(context, resource);
-        } catch (Exception ex) {
-            LOG.error(ex.getMessage(), ex);
-            task = null;
+    protected ServiceTaskTemplate loadTemplate(@Nonnull final BeanContext context,
+                                               @Nonnull final String path) {
+        ServiceTaskTemplate taskTemplate = null;
+        Resource resource = getTaskResource(context, path);
+        if (resource != null) {
+            taskTemplate = new ServiceTaskTemplate();
+            taskTemplate.initialize(context, resource);
         }
-        return task;
+        return taskTemplate;
+    }
+
+    /**
+     * a reference to a template should be accessible even if the user has no access
+     */
+    @Nullable
+    protected ServiceTaskTemplate loadTemplateRef(@Nonnull final BeanContext context,
+                                                  @Nonnull final String path) {
+        ServiceTaskTemplate taskTemplate = loadTemplate(context, path);
+        if (taskTemplate == null) {
+            try (final ServiceContext serviceContext = new ServiceContext(context instanceof ServiceContext
+                    ? ((ServiceContext) context).getRequestContext() : context)) {
+                Resource resource = getTaskResource(serviceContext, path);
+                if (resource != null) {
+                    taskTemplate = new ServiceTaskTemplateRef();
+                    taskTemplate.initialize(context, resource);
+                }
+            } catch (Exception ex) {
+                LOG.error(ex.getMessage(), ex);
+            }
+        }
+        return taskTemplate;
+    }
+
+    @Nullable
+    protected ServiceWorkflow loadWorkflow(@Nonnull final BeanContext context,
+                                           @Nonnull final String path) {
+        ServiceWorkflow workflow = null;
+        Resource resource = getTaskResource(context, path);
+        if (resource != null) {
+            workflow = new ServiceWorkflow();
+            workflow.initialize(context, resource);
+        }
+        return workflow;
     }
 
     @Nonnull
@@ -952,5 +1209,20 @@ public class PlatformWorkflowService implements WorkflowService {
             }
         }
         return resource;
+    }
+
+    protected String adjustAssignee(BeanContext context, String assignee, Class<? extends Authorizable> type) {
+        if (StringUtils.isNotBlank(assignee)) {
+            try {
+                UserManager userManager = ((JackrabbitSession) Objects.requireNonNull(
+                        context.getResolver().adaptTo(Session.class))).getUserManager();
+                if (type.isInstance(userManager.getAuthorizable(assignee))) {
+                    return assignee;
+                }
+            } catch (Exception ex) {
+                LOG.error(ex.getMessage(), ex);
+            }
+        }
+        return null;
     }
 }

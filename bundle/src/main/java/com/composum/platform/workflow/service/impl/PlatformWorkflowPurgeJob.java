@@ -20,7 +20,6 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Modified;
 import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,6 +27,9 @@ import java.util.Collection;
 
 import static com.composum.platform.workflow.service.impl.PlatformWorkflowPurgeJob.PURGE_JOB_TOPIC;
 
+/**
+ * a Job implementation to schedule the purge of finished workflows
+ */
 @Component(
         service = {JobConsumer.class, WorkflowPurgeJob.class},
         property = {
@@ -42,12 +44,6 @@ public class PlatformWorkflowPurgeJob implements WorkflowPurgeJob {
 
     public static final String PURGE_JOB_TOPIC = "composum/platform/workflow/purge";
 
-    @ObjectClassDefinition(
-            name = "Composum Platform Workflow Purge Configuration"
-    )
-    public @interface Config {
-    }
-
     @Reference
     protected ResourceResolverFactory resolverFactory;
 
@@ -61,7 +57,7 @@ public class PlatformWorkflowPurgeJob implements WorkflowPurgeJob {
 
     @Activate
     @Modified
-    public void activate(BundleContext bundleContext, Config config) {
+    public void activate(BundleContext bundleContext) {
         if (LOG.isDebugEnabled()) {
             LOG.debug("activate...");
         }
@@ -71,7 +67,7 @@ public class PlatformWorkflowPurgeJob implements WorkflowPurgeJob {
     }
 
     @Deactivate
-    public void deactivate(BundleContext bundleContext, Config config) {
+    public void deactivate(BundleContext bundleContext) {
         if (LOG.isDebugEnabled()) {
             LOG.debug("deactivate...");
         }

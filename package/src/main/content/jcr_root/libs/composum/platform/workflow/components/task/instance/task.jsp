@@ -20,7 +20,8 @@
                 <div class="data"><sling:include resourceType="${task.dialog}"
                                                  replaceSelectors="task-data"/></div>
             </c:if>
-            <div class="topic"><span class="icon fa fa-play-circle-o"></span>${cpn:path(task.topic)}</div>
+            <cpn:div test="${not empty task.topic}" class="topic"><span
+                    class="icon fa fa-play-circle-o"></span>${cpn:path(task.topic)}</cpn:div>
             <div class="template"><span class="icon fa fa-wrench"></span>${cpn:path(task.template.path)}</div>
         </div>
     </div>

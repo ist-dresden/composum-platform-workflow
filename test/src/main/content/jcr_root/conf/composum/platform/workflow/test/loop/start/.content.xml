@@ -3,7 +3,8 @@
         jcr:primaryType="nt:unstructured"
         sling:resourceType="composum/platform/workflow/task/template"
         title="Loop Start"
-        hint="the START task of the loop view test">
+        hint="the START task of the loop view test"
+        dialog="composum/platform/workflow/test/loop/start">
     <i18n
             jcr:primaryType="nt:unstructured">
         <de
@@ -26,6 +27,10 @@
                 template="/conf/composum/platform/workflow/test/loop/start">
         </decline>
     </options>
+    <data
+            jcr:primaryType="nt:unstructured"
+            tenantId="${tenantId}"
+            userId="${userId}"/>
     <workflow
             jcr:primaryType="nt:unstructured"
             sling:resourceType="composum/platform/workflow"

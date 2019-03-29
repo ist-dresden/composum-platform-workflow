@@ -18,6 +18,7 @@ import org.apache.sling.api.request.RequestParameter;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.ServletResolverConstants;
+import org.apache.sling.tenant.Tenant;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.ComponentContext;
@@ -198,6 +199,12 @@ public class WorkflowServlet extends AbstractServiceServlet {
             try {
                 BeanContext context = new BeanContext.Servlet(getServletContext(), bundleContext, request, response);
                 String tenantId = request.getParameter(PARAM_TENANT_ID);
+                if (StringUtils.isBlank(tenantId)) {
+                    Tenant tenant = resource.adaptTo(Tenant.class);
+                    if (tenant != null) {
+                        tenantId = tenant.getId();
+                    }
+                }
                 String taskTemplate = request.getParameter(PARAM_TEMPLATE);
                 String comment = request.getParameter(PARAM_COMMENT);
                 WorkflowTaskInstance taskInstance = workflowService.addTask(context, tenantId, null,

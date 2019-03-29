@@ -5,6 +5,7 @@ import com.composum.platform.workflow.model.Workflow;
 import com.composum.platform.workflow.model.WorkflowTaskInstance;
 import com.composum.platform.workflow.model.WorkflowTaskTemplate;
 import com.composum.sling.core.BeanContext;
+import com.composum.sling.core.bean.SlingBeanFactory;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
@@ -16,21 +17,15 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 
-public interface WorkflowService {
-
-    /** the task instance reference job property name */
-    String PN_TASK_INSTANCE_PATH = "wf.task.instance.path";
-
-    /** the job property 'option' key for the users choice */
-    String PN_TASK_OPTION = "wf.task.job.option";
-
-    /** the job property 'initiator' key for the users id */
-    String PN_TASK_INITIATOR = "wf.task.job.initiator";
+public interface WorkflowService extends SlingBeanFactory {
 
     /** meta data properties for placeholder replacement */
     String META_TENANT_ID = "tenantId";
     String META_USER_ID = "userId";
     String META_OPTION = "option";
+
+    /** the template or option data value to trigger removal of this data during task processing */
+    String DATA_KEY_REMOVE = "@{remove}";
 
     @ObjectClassDefinition(
             name = "Composum Platform Workflow Configuration"
@@ -77,12 +72,30 @@ public interface WorkflowService {
                                      @Nullable String tenantId,
                                      @Nullable Resource target);
 
+    /**
+     * retrieves the workflow which contains the resource as task
+     *
+     * @param context  the current request context
+     * @param resource the task resource
+     */
     @Nullable
     Workflow getWorkflow(@Nonnull final BeanContext context, @Nonnull final Resource resource);
 
+    /**
+     * find all open workflows which are initiated (started; implicit or explicit) by one user
+     *
+     * @param context the current request context
+     * @param userId  the id of the user
+     */
     @Nonnull
     Collection<Workflow> findInitiatedOpenWorkflows(@Nonnull BeanContext context, @Nonnull String userId);
 
+    /**
+     * find all available workflows which are initiated (started) by one user
+     *
+     * @param context the current request context
+     * @param userId  the id of the user
+     */
     @Nonnull
     Collection<Workflow> findInitiatedWorkflows(@Nonnull BeanContext context, @Nonnull String userId);
 
@@ -98,19 +111,25 @@ public interface WorkflowService {
                                              @Nullable WorkflowTaskInstance.State scope);
 
     /**
-     * loads a task (template) from the repository
+     * loads a task instance from the repository
      *
-     * @param context the current request context
-     * @param path    the repository path ('inbox' or an initial path from an app)
+     * @param context  the current request context
+     * @param pathOrId the repository path or the instance id (name) of the instance
      */
     @Nullable
-    WorkflowTaskInstance getInstance(@Nonnull BeanContext context, @Nonnull String path);
+    WorkflowTaskInstance getInstance(@Nonnull BeanContext context, @Nonnull String pathOrId);
 
+    /**
+     * loads a task template from the repository
+     *
+     * @param context the current request context
+     * @param path    the repository path of the template
+     */
     @Nullable
     WorkflowTaskTemplate getTemplate(@Nonnull BeanContext context, @Nonnull String path);
 
     /**
-     * @return the current state of the task referenced by task path or id
+     * @return the current state of the task instance referenced by path or id
      */
     @Nullable
     WorkflowTaskInstance.State getState(@Nonnull BeanContext context, @Nonnull String pathOrId);

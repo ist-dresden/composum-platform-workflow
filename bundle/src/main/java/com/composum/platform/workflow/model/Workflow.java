@@ -4,6 +4,7 @@ import com.composum.platform.models.simple.LoadedModel;
 import com.composum.platform.models.simple.LoadedResource;
 import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.core.BeanContext;
+import com.composum.sling.core.bean.BeanFactory;
 import com.composum.sling.core.filter.ResourceFilter;
 import com.composum.sling.core.mapping.jcr.ResourceFilterMapping;
 import org.apache.commons.lang3.StringUtils;
@@ -27,7 +28,8 @@ import java.util.Map;
 import static com.composum.platform.workflow.model.WorkflowTask.PN_HINT;
 import static com.composum.platform.workflow.model.WorkflowTask.PN_TITLE;
 
-public class Workflow extends LoadedModel {
+@BeanFactory(serviceClass = WorkflowService.class)
+public abstract class Workflow extends LoadedModel {
 
     private static final Logger LOG = LoggerFactory.getLogger(Workflow.class);
 
@@ -74,7 +76,6 @@ public class Workflow extends LoadedModel {
         }
     }
 
-    protected LinkedHashMap<String, WorkflowTask> tasks = new LinkedHashMap<>();
     protected ArrayList<Transition> transitions = new ArrayList<>();
     protected ArrayList<WorkflowTaskInstance> openTasks = new ArrayList<>();
     protected ArrayList<WorkflowTaskInstance> instances = new ArrayList<>();
@@ -86,7 +87,16 @@ public class Workflow extends LoadedModel {
 
     private transient ValueMap values;
 
-    private transient WorkflowService service;
+    @Nonnull
+    public abstract LinkedHashMap<String, WorkflowTask> getTasks();
+
+    protected abstract void addInstance(@Nonnull WorkflowTaskInstance task);
+
+    protected abstract void addTemplate(@Nonnull WorkflowTaskTemplate template, @Nonnull String key);
+
+    public abstract boolean isRestricted();
+
+    protected abstract WorkflowService getService();
 
     /**
      * @return 'true' if the workflow is built from task templates only
@@ -110,11 +120,7 @@ public class Workflow extends LoadedModel {
     }
 
     public boolean isHollow() {
-        return tasks.isEmpty();
-    }
-
-    public LinkedHashMap<String, WorkflowTask> getTasks() {
-        return tasks;
+        return getTasks().isEmpty();
     }
 
     public WorkflowTask getTask(Resource resource) {
@@ -128,7 +134,7 @@ public class Workflow extends LoadedModel {
     }
 
     public boolean containsTasks(WorkflowTask task) {
-        return tasks.containsKey(task instanceof WorkflowTaskInstance ? task.getName() : task.getPath());
+        return getTasks().containsKey(task instanceof WorkflowTaskInstance ? task.getName() : task.getPath());
     }
 
     public List<WorkflowTaskInstance> getInstances() {
@@ -273,13 +279,6 @@ public class Workflow extends LoadedModel {
 
     // build from instances
 
-    protected WorkflowService getService() {
-        if (service == null) {
-            service = context.getService(WorkflowService.class);
-        }
-        return service;
-    }
-
     /**
      * @return the initial (first) instance of a running workflow;
      * 'null' if the resource doesn't reference a workflow instance
@@ -300,11 +299,7 @@ public class Workflow extends LoadedModel {
      */
     protected void buildWorkflowFromInstances(@Nonnull final BeanContext context,
                                               @Nonnull final WorkflowTaskInstance task) {
-        String name = task.getName();
-        if (tasks.containsKey(name)) {
-            throw new IllegalStateException("workflow contains instance '" + name + "' twice");
-        }
-        tasks.put(name, task);
+        addInstance(task);
         if (!instances.contains(task)) {
             instances.add(task);
         }
@@ -350,16 +345,16 @@ public class Workflow extends LoadedModel {
                                               @Nonnull final WorkflowTaskTemplate task,
                                               @Nullable final WorkflowTask.Option optionToTask) {
         String key = task.getPath();
-        if (tasks.containsKey(key)) {
+        if (getTasks().containsKey(key)) {
             // this is a loop; it's ok but we should stop building here
-            tasks.put(getTemplateKey(task), task);
+            addTemplate(task, getTemplateKey(task));
             if (optionToTask != null) {
                 optionToTask.setIsLoop(true);
             } else {
                 throw new IllegalStateException("unexpected template loop: '" + task.getPath() + "'");
             }
         } else {
-            tasks.put(key, task);
+            addTemplate(task, key);
             for (WorkflowTask.Option option : task.getOptions()) {
                 addOption(context, task, option);
             }
@@ -369,6 +364,7 @@ public class Workflow extends LoadedModel {
     protected String getTemplateKey(WorkflowTaskTemplate template) {
         if (template != null) {
             String key = template.getPath();
+            LinkedHashMap<String, WorkflowTask> tasks = getTasks();
             if (tasks.containsKey(key)) {
                 int i = 0;
                 while (tasks.containsKey(key + "#" + i)) i++;
@@ -392,8 +388,8 @@ public class Workflow extends LoadedModel {
         if (other instanceof Workflow) {
             Workflow otherWorkflow = (Workflow) other;
             if (isTemplate()) {
-                Iterator<String> myKeys = tasks.keySet().iterator();
-                Iterator<String> otherKeys = otherWorkflow.tasks.keySet().iterator();
+                Iterator<String> myKeys = getTasks().keySet().iterator();
+                Iterator<String> otherKeys = otherWorkflow.getTasks().keySet().iterator();
                 while (myKeys.hasNext()) {
                     if (!otherKeys.hasNext() || !myKeys.next().equals(otherKeys.next())) {
                         return false;
@@ -420,7 +416,7 @@ public class Workflow extends LoadedModel {
     }
 
     protected void dump(StringBuilder builder, int indent, WorkflowTask task) {
-        boolean isLoop = task instanceof WorkflowTaskTemplate && ((WorkflowTaskTemplate) task).isLoop;
+        boolean isLoop = task instanceof WorkflowTaskTemplate && ((WorkflowTaskTemplate) task).isWorkflowLoop();
         builder.append(StringUtils.repeat(' ', indent));
         builder.append("# ").append(task).append(isLoop ? " loop!" : " ...").append('\n');
         if (!isLoop) {

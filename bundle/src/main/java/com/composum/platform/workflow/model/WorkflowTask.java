@@ -3,7 +3,6 @@ package com.composum.platform.workflow.model;
 import com.composum.platform.models.simple.LoadedModel;
 import com.composum.platform.models.simple.LoadedResource;
 import com.composum.platform.models.simple.ViewValueMap;
-import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.core.BeanContext;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.JcrConstants;
@@ -12,57 +11,63 @@ import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
+import javax.annotation.Nullable;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 import static com.composum.platform.workflow.model.Workflow.RA_WORKFLOW;
 
 /**
  * the abstract base class of a task instance and a task template
+ * <p>
+ * this implementation preloads all properties (LoadedModel) because it's possible that the model is instantiated
+ * in the context od a service resolver which is normally closed after generation of the instances
+ * </p>
  */
+@SuppressWarnings("Duplicates")
 public abstract class WorkflowTask extends LoadedModel {
 
-    public static final String PN_TOPIC = "topic";
     public static final String PN_CATEGORY = "category";
-    public static final String PN_ASSIGNEE = "assignee";
+    public static final String PN_TOPIC = "topic";
 
+    public static final String PN_ASSIGNEE = "assignee";
+    public static final String PN_TEMPLATE = "template";
+
+    /** text property names in an 'i18n' context */
     public static final String PN_TITLE = "title";
     public static final String PN_HINT = "hint";
     public static final String PN_HINT_ADDED = "hintAdded";
     public static final String PN_HINT_SELECTED = "hintSelected";
-    public static final String PN_DIALOG = "dialog";
-    public static final String PN_AUTO_RUN = "autoRun";
 
-    public static final String PP_OPTIONS = "options";
+    /** task processing properties */
+    public static final String PN_AUTO_RUN = "autoRun";
     public static final String PN_DEFAULT = "default";
+    public static final String PN_DIALOG = "dialog";
     public static final String PN_FORM_TYPE = "formType";
 
+    /** task subnode names (property paths) */
+    public static final String PP_OPTIONS = "options";
     public static final String PP_DATA = "data";
     public static final String PP_COMMENTS = "comments";
 
-    private transient WorkflowService service;
-
-    private transient ValueMap data;
-    private transient String dataHint;
-    public static final String PN_TEMPLATE = "template";
-
-    public class Option extends LoadedModel {
+    /**
+     * a processing option of the task (also with preloaded properties)
+     */
+    public abstract class Option extends LoadedModel {
 
         protected final String key;
         protected final String topic;
-        protected final String title;
-        protected final String hint;
         protected final String hintSelected;
         protected final String formType;
         protected final String templatePath;
         protected final boolean isDefault;
 
-        private boolean isLoop = false;
+        protected boolean isLoop = false;
 
-        private transient WorkflowTaskTemplate template;
+        private transient String title;
+        private transient String hint;
+        private transient ValueMap data;
 
         public Option(@Nonnull final Resource resource) {
             initialize(WorkflowTask.this.context, resource);
@@ -70,44 +75,53 @@ public abstract class WorkflowTask extends LoadedModel {
             templatePath = getProperty(PN_TEMPLATE, "");
             topic = getProperty(PN_TOPIC, "");
             formType = getProperty(PN_FORM_TYPE, "");
-            title = i18n().get(PN_TITLE, template != null ? template.getTitle() : "");
-            hint = i18n().get(PN_HINT, template != null ? template.getHint() : "");
             hintSelected = i18n().get(PN_HINT_SELECTED, "");
             isDefault = getProperty(PN_DEFAULT, Boolean.FALSE);
-        }
-
-        public WorkflowTaskTemplate getTemplate() {
-            if (template == null) {
-                // lazy load to prevent from stack overflow on task loops
-                template = StringUtils.isNotBlank(templatePath)
-                        ? getService().getTemplate(context, templatePath) : null;
-                if (template != null && isLoop) {
-                    template.isLoop = true;
-                }
-            }
-            return template;
         }
 
         public WorkflowTask getTask() {
             return WorkflowTask.this;
         }
 
-        public String getTopic() {
-            return topic;
+        /** must be implemented by the service; the template referenced by the option */
+        @Nullable
+        public abstract WorkflowTaskTemplate getTemplate();
+
+        /** must be implemented by the service; determines the 'loop' state */
+        public abstract void setIsLoop(boolean isLoop);
+
+        public boolean isLoop() {
+            return isLoop;
         }
 
         public boolean isDefault() {
             return isDefault;
         }
 
+        @Nonnull // but probably empty
+        public String getTopic() {
+            return topic;
+        }
+
+        @Nonnull // but probably empty
         public String getTitle() {
+            if (title == null) {
+                WorkflowTaskTemplate template = getTemplate();
+                title = i18n().get(PN_TITLE, template != null ? template.getTitle() : "");
+            }
             return title;
         }
 
+        @Nonnull // but probably empty
         public String getHint() {
+            if (hint == null) {
+                WorkflowTaskTemplate template = getTemplate();
+                hint = i18n().get(PN_TITLE, template != null ? template.getHint() : "");
+            }
             return hint;
         }
 
+        @Nonnull // but probably empty
         public String getHintSelected(String alternativeText) {
             return StringUtils.isNotBlank(hintSelected) ? hintSelected : alternativeText;
         }
@@ -116,18 +130,27 @@ public abstract class WorkflowTask extends LoadedModel {
             return StringUtils.isNotBlank(getFormType());
         }
 
+        /**
+         * @return the resource type of the component embedded in the dialog if this option is chosen
+         */
+        @Nonnull // but probably empty
         public String getFormType() {
             return formType;
         }
 
-        public boolean isLoop() {
-            return isLoop;
+        /**
+         * @return the value map of the 'data' child node of the option
+         */
+        @Nonnull
+        public ValueMap getData() {
+            if (data == null) {
+                Resource child = getResource().getChild(PP_DATA);
+                data = child != null ? child.getValueMap() : new ValueMapDecorator(Collections.emptyMap());
+            }
+            return data;
         }
 
-        public void setIsLoop(boolean isLoop) {
-            this.isLoop = isLoop;
-            getTemplate().isLoop = isLoop;
-        }
+        // Object
 
         @Override
         public boolean equals(Object other) {
@@ -141,6 +164,11 @@ public abstract class WorkflowTask extends LoadedModel {
         }
     }
 
+    /** true if the current requests target resource references this model */
+    protected boolean isCurrent;
+
+    private transient ValueMap data;
+
     /**
      * preload all properties to decouple model from resolver
      * (service resolver maybe closed earlier than properties accessed)
@@ -148,35 +176,21 @@ public abstract class WorkflowTask extends LoadedModel {
     @Override
     public void initialize(BeanContext context, Resource resource) {
         super.initialize(context, new LoadedResource(resource));
-    }
-
-    protected WorkflowService getService() {
-        if (service == null) {
-            service = context.getService(WorkflowService.class);
-        }
-        return service;
+        Resource requested = context.getResolver().resolve(context.getRequest().getRequestURI());
+        isCurrent = resource.getPath().equals(requested.getPath());
     }
 
     @Nonnull
     public abstract String getResourceType();
 
-    public boolean isCurrent() {
-        Resource requested = context.getResolver().resolve(context.getRequest().getRequestURI());
-        return resource.getPath().equals(requested.getPath());
+    @Nonnull
+    public String getAssignee() {
+        return getProperty(PN_ASSIGNEE, "");
     }
 
-    public Workflow getWorkflow() {
-        return (Workflow) context.getRequest().getAttribute(RA_WORKFLOW);
-    }
-
-    public boolean isWorkflowStart() {
-        Workflow workflow = getWorkflow();
-        return workflow != null && this.equals(workflow.getFirstTask());
-    }
-
-    public boolean isWorkflowEnd() {
-        Workflow workflow = getWorkflow();
-        return workflow != null && workflow.getTransitions(this).isEmpty();
+    @Nullable
+    public Calendar getCreated() {
+        return getProperty(JcrConstants.JCR_CREATED, Calendar.class);
     }
 
     /**
@@ -185,9 +199,8 @@ public abstract class WorkflowTask extends LoadedModel {
     @Nonnull
     public abstract String[] getCategory();
 
-    /**
-     * a template uses its properties ; an instance uses their template
-     */
+    // template driven - a template uses its properties; an instance uses its template
+
     @Nonnull
     public abstract String getTopic();
 
@@ -205,15 +218,6 @@ public abstract class WorkflowTask extends LoadedModel {
     @Nonnull
     public abstract Collection<Option> getOptions();
 
-    public Calendar getCreated() {
-        return getProperty(JcrConstants.JCR_CREATED, Calendar.class);
-    }
-
-    @Nonnull
-    public String getAssignee() {
-        return getProperty(PN_ASSIGNEE, "");
-    }
-
     /**
      * @return the value map of the 'data' child node
      */
@@ -226,28 +230,44 @@ public abstract class WorkflowTask extends LoadedModel {
         return data;
     }
 
+    /**
+     * @return a variation of the 'data' prepared for a view (value preparation for displaying)
+     */
+    @Nonnull
     public ViewValueMap getDataView() {
         return new ViewValueMap(getData());
     }
 
+    // Workflow (graph)
+
     /**
-     * @return an HTML table of all data values
+     * @return 'true' if the current requests target resource references this model
      */
-    @Nonnull
-    public String getDataHint() {
-        if (dataHint == null) {
-            StringBuilder builder = new StringBuilder("<table class=\"data-table\"><tbody>");
-            ValueMap data = getData();
-            List<String> keys = new ArrayList<>(data.keySet());
-            Collections.sort(keys);
-            for (String key : keys) {
-                if (!key.startsWith("jcr:")) {
-                    builder.append("<tr><th>").append(key).append("</th><td>").append(data.get(key)).append("</td></tr>");
-                }
-            }
-            builder.append("</tbody></table>");
-            dataHint = builder.toString();
-        }
-        return dataHint;
+    public boolean isCurrent() {
+        return isCurrent;
+    }
+
+    /**
+     * @return the 'Workflow' instance of the current request (must be stored preemptive)
+     */
+    @Nullable
+    public Workflow getWorkflow() {
+        return (Workflow) context.getRequest().getAttribute(RA_WORKFLOW);
+    }
+
+    /**
+     * @return 'true' if this task is the first task of the workflow
+     */
+    public boolean isWorkflowStart() {
+        Workflow workflow = getWorkflow();
+        return workflow != null && this.equals(workflow.getFirstTask());
+    }
+
+    /**
+     * @return 'true' if this task has no options to extend the workflow during processing
+     */
+    public boolean isWorkflowEnd() {
+        Workflow workflow = getWorkflow();
+        return workflow != null && workflow.getTransitions(this).isEmpty();
     }
 }

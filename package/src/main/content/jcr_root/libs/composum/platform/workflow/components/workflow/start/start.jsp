@@ -7,8 +7,8 @@
     <div class="composum-platform-workflow_dialog dialog modal fade">
         <div class="modal-dialog">
             <div class="modal-content form-panel">
-                <cpn:form class="widget-form workflow-dialog_form" action="/bin/cpm/platform/workflow.addTask.json"
-                          method="POST">
+                <cpn:form class="widget-form workflow-dialog_form" method="POST"
+                          action="/bin/cpm/platform/workflow.addTask.json${wfDialog.path}">
                     <div class="modal-header workflow-dialog_header">
                         <button type="button" class="workflow-dialog_button-close fa fa-close"
                                 data-dismiss="modal" aria-label="Close"></button>

@@ -20,11 +20,11 @@
                 <c:when test="${not empty inbox.tasks}">
                     <c:forEach items="${inbox.tasks}" var="task">
                         <tr class="composum-platform-workflow_inbox-task item table-row task-state_${task.cancelled?'cancelled':task.state}${task.autoRun?' auto-run':''}"
-                            data-path="${task.path}">
+                            data-path="${task.path}" data-state="${task.state}" data-graph="${task.graphAvailable}"
+                            data-cancel="${task.cancellingAllowed}">
                             <td class="sel"><label><input type="radio" name="task" value="${task.path}"/></label></td>
                             <td class="date">${task.date}</td>
-                            <td class="title"
-                                data-hint="${cpn:attr(slingRequest,task.dataHint,0)}">${cpn:text(task.title)}</td>
+                            <td class="title">${cpn:text(task.title)}</td>
                             <td class="hint">${cpn:rich(slingRequest,task.hint)}</td>
                             <td class="assignee">${cpn:text(task.assignee)}</td>
                         </tr>

@@ -26,6 +26,9 @@ import java.util.Map;
 
 import static org.osgi.framework.Constants.OBJECTCLASS;
 
+/**
+ * the action manager is registering action implementations by their topics
+ */
 @Component(
         property = {
                 Constants.SERVICE_DESCRIPTION + "=Composum Platform Workflow Action Manager"
@@ -45,12 +48,18 @@ public class PlatformActionManager implements WorkflowActionManager {
         this.bundleContext = bundleContext;
     }
 
+    /**
+     * @return all registered action implementations for the topic in the service ranking order
+     */
     @Override
     @Nullable
     public List<ActionReference> getWorkflowAction(@Nonnull final String topic) {
         return workflowActions.get(topic);
     }
 
+    /**
+     * @return all registered action implementations for the type (the class name is used as the topic)
+     */
     @Override
     @Nullable
     public List<ActionReference> getWorkflowAction(@Nonnull final Class<? extends WorkflowAction> type) {
@@ -101,24 +110,16 @@ public class PlatformActionManager implements WorkflowActionManager {
     protected class PlatformActionReference implements ActionReference {
 
         public final ServiceReference<WorkflowAction> actionReference;
-        public final long sericeId;
+        public final long serviceId;
         public final int ranking;
 
         private transient WorkflowAction action;
 
         public PlatformActionReference(ServiceReference<WorkflowAction> actionReference) {
             this.actionReference = actionReference;
-            this.sericeId = (Long) actionReference.getProperty(Constants.SERVICE_ID);
+            this.serviceId = (Long) actionReference.getProperty(Constants.SERVICE_ID);
             final Object property = actionReference.getProperty(Constants.SERVICE_RANKING);
             this.ranking = !(property instanceof Integer) ? 0 : (Integer) property;
-        }
-
-        public long getServieId() {
-            return sericeId;
-        }
-
-        public int getRanking() {
-            return ranking;
         }
 
         public WorkflowAction getAction() {
@@ -128,6 +129,22 @@ public class PlatformActionManager implements WorkflowActionManager {
             return action;
         }
 
+        public long getServieId() {
+            return serviceId;
+        }
+
+        public int getRanking() {
+            return ranking;
+        }
+
+        @Override
+        public int compareTo(@Nonnull final ActionReference other) {
+            return Integer.compare(getRanking(), other.getRanking());
+        }
+
+        // Object
+
+        @Override
         public boolean equals(Object other) {
             return other instanceof ActionReference && ((ActionReference) other).getServieId() == getServieId();
         }
@@ -135,11 +152,6 @@ public class PlatformActionManager implements WorkflowActionManager {
         @Override
         public int hashCode() {
             return actionReference.hashCode();
-        }
-
-        @Override
-        public int compareTo(@Nonnull final ActionReference other) {
-            return Integer.compare(getRanking(), other.getRanking());
         }
     }
 }

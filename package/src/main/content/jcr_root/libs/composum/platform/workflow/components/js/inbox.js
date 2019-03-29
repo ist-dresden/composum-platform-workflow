@@ -12,13 +12,42 @@
         workflow.InboxToolbar = Backbone.View.extend({
 
             initialize: function (options) {
+                this.$start = this.$('.start');
+                this.$process = this.$('.process');
+                this.$detail = this.$('.detail');
+                this.$cancel = this.$('.cancel');
                 this.$scope = this.$('.scope select');
                 this.$scope.val(workflow.inboxTable.scope);
-                this.$('.start').click(_.bind(workflow.inboxTable.addTask, workflow.inboxTable));
-                this.$('.process').click(_.bind(workflow.inboxTable.runTask, workflow.inboxTable));
-                this.$('.detail').click(_.bind(workflow.inboxTable.showDetail, workflow.inboxTable));
-                this.$('.cancel').click(_.bind(workflow.inboxTable.cancelTask, workflow.inboxTable));
+                this.$start.click(_.bind(workflow.inboxTable.addTask, workflow.inboxTable));
+                this.$process.click(_.bind(workflow.inboxTable.runTask, workflow.inboxTable));
+                this.$detail.click(_.bind(workflow.inboxTable.showDetail, workflow.inboxTable));
+                this.$cancel.click(_.bind(workflow.inboxTable.cancelTask, workflow.inboxTable));
                 this.$scope.change(_.bind(workflow.inboxTable.scopeChanged, workflow.inboxTable));
+            },
+
+            adjustState: function (state, graph, cancel) {
+                switch (state) {
+                    case 'pending':
+                        this.$process.prop('disabled', false);
+                        this.$detail.prop('disabled', !graph);
+                        this.$cancel.prop('disabled', !cancel || !graph);
+                        break;
+                    case 'running':
+                        this.$process.prop('disabled', true);
+                        this.$detail.prop('disabled', !graph);
+                        this.$cancel.prop('disabled', !cancel || !graph);
+                        break;
+                    case 'finished':
+                        this.$process.prop('disabled', true);
+                        this.$detail.prop('disabled', !graph);
+                        this.$cancel.prop('disabled', true);
+                        break;
+                    default:
+                        this.$process.prop('disabled', true);
+                        this.$detail.prop('disabled', true);
+                        this.$cancel.prop('disabled', true);
+                        break;
+                }
             }
         });
 
@@ -37,6 +66,10 @@
                 event.preventDefault();
                 this.$selected = $(event.currentTarget).closest('.' + c.base + c._task);
                 this.$selected.find('.sel input').prop('checked', true);
+                workflow.inboxToolbar.adjustState(
+                    this.$selected.data('state'),
+                    this.$selected.data('graph'),
+                    this.$selected.data('cancel'));
                 return false;
             },
 
@@ -45,10 +78,12 @@
                     event.preventDefault();
                 }
                 var u = workflow.const.url;
-                core.getHtml(u.base + u._start,
+                core.getHtml(u.base + u._start + this.$el.data('path'),
                     _.bind(function (content) {
                         if (content) {
-                            core.showFormDialog(workflow.StartDialog, content);
+                            core.showFormDialog(workflow.StartDialog, content, undefined, function () {
+                                $(document).trigger('detail:reload', [this.path]);
+                            });
                         }
                     }, this));
                 return false;
@@ -64,7 +99,9 @@
                     core.getHtml(u.base + u._dialog + path,
                         _.bind(function (content) {
                             if (content) {
-                                core.showFormDialog(workflow.Dialog, content);
+                                core.showFormDialog(workflow.Dialog, content, undefined, function () {
+                                    $(document).trigger('detail:reload', [this.path]);
+                                });
                             }
                         }, this));
                 }
@@ -78,8 +115,11 @@
                 if (this.$selected.length === 1) {
                     var path = this.$selected.data('path');
                     core.getHtml(path + '.dialog.condense.html', _.bind(function (content) {
-                        core.showLoadedDialog(core.components.LoadedDialog, content);
-                    }, this));
+                            core.showLoadedDialog(core.components.LoadedDialog, content, undefined, function () {
+                                $(document).trigger('detail:reload', [this.path]);
+                            });
+                        }, this)
+                    );
                 }
                 return false;
             },
@@ -91,7 +131,9 @@
                 if (this.$selected.length === 1) {
                     var path = this.$selected.data('path');
                     core.getHtml(path + '.cancel.condense.html', _.bind(function (content) {
-                        core.showFormDialog(workflow.CancelDialog, content);
+                        core.showFormDialog(workflow.CancelDialog, content, undefined, function () {
+                            $(document).trigger('detail:reload', [this.path]);
+                        });
                     }, this));
                 }
                 return false;
@@ -103,7 +145,7 @@
                 }
                 var $select = $(event.currentTarget);
                 var scope = $select.val();
-                if (this.scope !== scope){
+                if (this.scope !== scope) {
                     this.scope = scope;
                     $(document).trigger('scope:changed', [this.path, scope]);
                 }
