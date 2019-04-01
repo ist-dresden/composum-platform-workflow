@@ -1,0 +1,54 @@
+@charset "UTF-8";
+
+@import "../../../css/variables";
+
+.composum-platform-workflow {
+
+    &_inbox {
+
+        &-task {
+            cursor: pointer;
+            margin: $tools-pane-padding 0;
+            background: $tools-tile-background;
+
+            &:hover {
+                background: $tools-tile-bg-hover;
+            }
+
+            &.selected {
+                background-color: $tools-pane-main-selection-color;
+
+                &:hover {
+                    background-color: $tools-pane-main-selection-color;
+                }
+            }
+
+            &:first-child {
+                margin-top: 0;
+            }
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+
+            &, .table, p {
+                color: #eee;
+            }
+
+            .table {
+
+                td {
+                    border-color: #888;
+                }
+            }
+
+            .assignee, .date, .topic, .template {
+                color: #ccc;
+            }
+        }
+    }
+
+    &_dialog {
+        z-index: 3001;
+    }
+}

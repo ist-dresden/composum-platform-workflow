@@ -25,6 +25,13 @@
                 },
                 dialog: {
                     base: 'workflow-dialog',
+                    _title: '_dialog-title',
+                    _list: '_list',
+                    _item: '_list-item',
+                    _start: '_start-content',
+                    type: 'type',
+                    title: 'title',
+                    hint: 'hint',
                     _options: '_task-options'
                 }
             },

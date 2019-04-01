@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,7 +90,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
     }
 
     public enum Operation {
-        dialog, startDialog, addTask, runTask, cancelTask
+        dialog, startDialog, taskList, addTask, runTask, cancelTask
     }
 
     protected TenantsOperationSet operations = new TenantsOperationSet();
@@ -113,6 +114,8 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 Operation.dialog, new GetDialogOperation());
         operations.setOperation(ServletOperationSet.Method.GET, Extension.json,
                 Operation.startDialog, new GetStartDialogOperation());
+        operations.setOperation(ServletOperationSet.Method.GET, Extension.json,
+                Operation.taskList, new GetTaskListOperation());
 
         // POST
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json,
@@ -143,19 +146,14 @@ public class WorkflowServlet extends AbstractServiceServlet {
             WorkflowTaskInstance task = workflowService.getInstance(context, resource.getPath());
             if (task != null) {
                 WorkflowTaskTemplate template = task.getTemplate();
-                if (template != null) {
-                    RequestDispatcherOptions options = new RequestDispatcherOptions();
-                    options.setForceResourceType(template.getDialog());
-                    RequestDispatcher dispatcher = request.getRequestDispatcher(resource, options);
-                    if (dispatcher != null) {
-                        dispatcher.forward(request, response);
-                    } else {
-                        sendError(LOG::error, response, SC_INTERNAL_SERVER_ERROR,
-                                i18n(request, "can't forward request") + " '" + request.getRequestPathInfo().getSuffix() + "'");
-                    }
+                RequestDispatcherOptions options = new RequestDispatcherOptions();
+                options.setForceResourceType(template.getDialog());
+                RequestDispatcher dispatcher = request.getRequestDispatcher(resource, options);
+                if (dispatcher != null) {
+                    dispatcher.forward(request, response);
                 } else {
-                    sendError(LOG::info, response, HttpServletResponse.SC_BAD_REQUEST,
-                            i18n(request, "invalid task") + " '" + resource.getPath() + "'");
+                    sendError(LOG::error, response, SC_INTERNAL_SERVER_ERROR,
+                            i18n(request, "can't forward request") + " '" + request.getRequestPathInfo().getSuffix() + "'");
                 }
             } else {
                 sendError(LOG::info, response, HttpServletResponse.SC_BAD_REQUEST,
@@ -183,7 +181,26 @@ public class WorkflowServlet extends AbstractServiceServlet {
         }
     }
 
-    // Wrapper execution
+    public class GetTaskListOperation implements ServletOperation {
+
+        @Override
+        public void doIt(@Nonnull final SlingHttpServletRequest request,
+                         @Nonnull final SlingHttpServletResponse response,
+                         @Nonnull final ResourceHandle resource)
+                throws ServletException, IOException {
+            RequestDispatcherOptions options = new RequestDispatcherOptions();
+            options.setForceResourceType("composum/platform/workflow/components/inbox/list");
+            RequestDispatcher dispatcher = request.getRequestDispatcher(resource, options);
+            if (dispatcher != null) {
+                dispatcher.forward(request, response);
+            } else {
+                sendError(LOG::error, response, SC_INTERNAL_SERVER_ERROR,
+                        i18n(request, "can't forward request") + " '" + request.getRequestPathInfo().getSuffix() + "'");
+            }
+        }
+    }
+
+    // task execution
 
     /**
      * creates a task (can be the start of a workflow) and stores the task in the inbox or executes the task
@@ -206,14 +223,20 @@ public class WorkflowServlet extends AbstractServiceServlet {
                     }
                 }
                 String taskTemplate = request.getParameter(PARAM_TEMPLATE);
-                String comment = request.getParameter(PARAM_COMMENT);
-                WorkflowTaskInstance taskInstance = workflowService.addTask(context, tenantId, null,
-                        taskTemplate, comment, getTaskData(request), null);
-                if (taskInstance != null) {
-                    jsonStatus(request, response, true, i18n(request, "Success"),
-                            taskInstance.getTemplate().getHintAdded(i18n(request, "task created")), null);
+                if (StringUtils.isNotBlank(taskTemplate)) {
+                    String[] target = request.getParameterValues(PARAM_TARGET);
+                    String comment = request.getParameter(PARAM_COMMENT);
+                    WorkflowTaskInstance taskInstance = workflowService.addTask(context, tenantId, null, taskTemplate,
+                            target != null ? Arrays.asList(target) : Collections.emptyList(), getTaskData(request),
+                            comment, null);
+                    if (taskInstance != null) {
+                        jsonStatus(request, response, true, i18n(request, "Success"),
+                                taskInstance.getTemplate().getHintAdded(i18n(request, "task created")), null);
+                    } else {
+                        jsonStatus(request, response, false, i18n(request, "Failed"), i18n(request, "task not created"), null);
+                    }
                 } else {
-                    jsonStatus(request, response, false, i18n(request, "Failed"), i18n(request, "task not created"), null);
+                    jsonStatus(request, response, false, i18n(request, "Failed"), i18n(request, "not template"), null);
                 }
             } catch (PersistenceException ex) {
                 LOG.error(ex.getMessage(), ex);

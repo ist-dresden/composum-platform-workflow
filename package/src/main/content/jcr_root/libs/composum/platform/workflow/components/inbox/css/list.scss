@@ -1,0 +1,109 @@
+@charset "UTF-8";
+
+.composum-platform-workflow {
+
+    &_inbox {
+
+        &-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        &-task {
+            position: relative;
+            width: 100%;
+            padding: 2px 5px;
+
+            &.task-state {
+
+                &_running {
+
+                    .title {
+                        color: #fd6;
+                    }
+                }
+
+                &_finished {
+
+                    .title {
+                        color: #6f6;
+                    }
+                }
+
+                &_cancelled {
+
+                    .title {
+                        color: #f66;
+                    }
+                }
+            }
+
+            &, .table, p {
+                font-size: 14px;
+                line-height: 17px;
+            }
+
+            p {
+                margin: 3px 0;
+            }
+
+            .table {
+                width: auto;
+                margin: 5px auto;
+
+                > tbody {
+
+                    > tr {
+
+                        > th, > td {
+                            padding: 0 5px !important;
+                        }
+
+                        > td.value {
+                            width: inherit;
+                            min-width: 120px;
+                        }
+
+                        p {
+                            margin: 0;
+                        }
+                    }
+                }
+            }
+
+            .title {
+                margin: 3px 0 2px;
+                font-size: 17px;
+                font-weight: bold;
+                line-height: 20px;
+
+                .icon {
+                    display: inline-block;
+                    width: 20px;
+                    font-size: 17px;
+                }
+            }
+
+            .assignee, .date, .topic, .template {
+                width: 100%;
+                font-size: 12px;
+                line-height: 13px;
+                color: #888;
+
+                .icon {
+                    display: inline-block;
+                    margin-right: 5px;
+                    width: 13px;
+                    text-align: center;
+                    font-size: 12px;
+                }
+            }
+
+            .meta {
+                position: absolute;
+                top: 2px;
+                right: 5px;
+            }
+        }
+    }
+}

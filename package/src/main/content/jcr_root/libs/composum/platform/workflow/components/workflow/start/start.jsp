@@ -4,7 +4,7 @@
 <%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <sling:defineObjects/>
 <cpn:component id="wfDialog" type="com.composum.platform.workflow.model.WorkflowStartModel" scope="request">
-    <div class="composum-platform-workflow_dialog dialog modal fade">
+    <div class="composum-platform-workflow_dialog dialog modal fade" data-path="${wfDialog.path}">
         <div class="modal-dialog">
             <div class="modal-content form-panel">
                 <cpn:form class="widget-form workflow-dialog_form" method="POST"
@@ -13,7 +13,8 @@
                         <button type="button" class="workflow-dialog_button-close fa fa-close"
                                 data-dismiss="modal" aria-label="Close"></button>
                         <h4 class="modal-title workflow-dialog_dialog-title">
-                                ${cpn:i18n(slingRequest,'Start Workflow')}
+                            <span class="action">${cpn:i18n(slingRequest,'Start')}</span>
+                            <span class="type">${cpn:i18n(slingRequest,'Workflow')}</span>
                         </h4>
                     </div>
                     <div class="modal-body workflow-dialog_content">
@@ -24,31 +25,28 @@
                             </div>
                         </div>
                         <input name="_charset_" type="hidden" value="UTF-8"/>
-                        <input name="tenant.id" type="hidden" value="${wfDialog.tenantId}"/>
-                        <input name="wf.target" type="hidden" value="${wfDialog.resource.path}"/>
-                        <div class="form-group">
-                            <label class="widget-label"><span
-                                    class="label-text">${cpn:i18n(slingRequest,'Workflow')}</span><cpn:text
-                                    tagName="span" class="widget-hint"
-                                    i18n="true" value="select the workflow to start" type="rich"/></label>
-                            <ul class="composum-platform-workflow_list form-control">
-                                <c:forEach items="${wfDialog.workflows}" var="workflow">
-                                    <li class="composum-platform-workflow_list-item">
-                                        <label><input type="radio" name="wf.template" value="${workflow.path}"
-                                                      class="composum-platform-workflow_radio"/>
-                                            <cpn:text class="title">${workflow.title}</cpn:text>
-                                            <cpn:text class="hint" type="rich">${workflow.hint}</cpn:text></label>
-                                    </li>
-                                </c:forEach>
-                            </ul>
+                        <div class="composum-platform-workflow_start-content">
+                            <input name="tenant.id" type="hidden" value="${wfDialog.tenantId}"/>
+                            <input name="wf.target" type="hidden" value="${wfDialog.resource.path}"/>
+                            <div class="form-group">
+                                <label class="widget-label"><span
+                                        class="label-text">${cpn:i18n(slingRequest,'Workflow')}</span><cpn:text
+                                        tagName="span" class="widget-hint"
+                                        i18n="true" value="select the workflow to start" type="rich"/></label>
+                                <ul class="composum-platform-workflow_list form-control">
+                                    <c:forEach items="${wfDialog.workflows}" var="workflow">
+                                        <li class="composum-platform-workflow_list-item"
+                                            data-path="${workflow.path}" data-form="${workflow.formType}">
+                                            <label><input type="radio" class="composum-platform-workflow_radio"/>
+                                                <cpn:text class="title">${workflow.title}</cpn:text>
+                                                <cpn:text class="hint" type="rich">${workflow.hint}</cpn:text>
+                                            </label>
+                                        </li>
+                                    </c:forEach>
+                                </ul>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="widget-label"><span
-                                    class="label-text">${cpn:i18n(slingRequest,'Comment')}</span><cpn:text
-                                    tagName="span" class="widget-hint"
-                                    i18n="true" value="an internal comment (optional)" type="rich"/></label>
-                            <textarea name="wf.comment" class="widget text-area-widget form-control"></textarea>
-                        </div>
+                        <sling:call script="comment.jsp"/>
                     </div>
                     <div class="modal-footer workflow-dialog_footer">
                         <button type="button"

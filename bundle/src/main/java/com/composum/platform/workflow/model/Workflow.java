@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.composum.platform.workflow.model.WorkflowTask.PN_FORM_TYPE;
 import static com.composum.platform.workflow.model.WorkflowTask.PN_HINT;
 import static com.composum.platform.workflow.model.WorkflowTask.PN_TITLE;
 
@@ -268,7 +269,12 @@ public abstract class Workflow extends LoadedModel {
 
     @Nullable
     public String getAuthorized() {
-        return resource.getValueMap().get(PN_AUTHORIZED, String.class);
+        return getValues().get(PN_AUTHORIZED, String.class);
+    }
+
+    @Nullable
+    public String getFormType() {
+        return getValues().get(PN_FORM_TYPE, String.class);
     }
 
     @Nullable

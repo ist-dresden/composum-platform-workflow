@@ -31,6 +31,7 @@ public abstract class WorkflowTask extends LoadedModel {
     public static final String PN_CATEGORY = "category";
     public static final String PN_TOPIC = "topic";
 
+    public static final String PN_TARGET = "target";
     public static final String PN_ASSIGNEE = "assignee";
     public static final String PN_TEMPLATE = "template";
 
@@ -188,7 +189,8 @@ public abstract class WorkflowTask extends LoadedModel {
         return getProperty(PN_ASSIGNEE, "");
     }
 
-    @Nullable
+    @Nonnull
+    @SuppressWarnings("ConstantConditions")
     public Calendar getCreated() {
         return getProperty(JcrConstants.JCR_CREATED, Calendar.class);
     }

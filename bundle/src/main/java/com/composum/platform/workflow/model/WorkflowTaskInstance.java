@@ -9,9 +9,11 @@ import org.apache.sling.api.resource.Resource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static com.composum.platform.workflow.model.Workflow.RA_WORKFLOW_CONDENSE;
 
@@ -44,6 +46,7 @@ public abstract class WorkflowTaskInstance extends WorkflowTask {
     public static final String PN_FINISHED = "finished";
     public static final String PN_FINISHED_BY = PN_FINISHED + "By";
 
+    protected List<String> target;
     protected final WorkflowTaskTemplate template;
     protected final State state;
 
@@ -59,6 +62,7 @@ public abstract class WorkflowTaskInstance extends WorkflowTask {
     @Override
     public void initialize(@Nonnull final BeanContext context, @Nonnull final Resource resource) {
         super.initialize(context, resource);
+        target = Arrays.asList(resource.getValueMap().get(PN_TARGET, new String[0]));
     }
 
     /** must be implemented by the service */
@@ -87,6 +91,22 @@ public abstract class WorkflowTaskInstance extends WorkflowTask {
      */
     public boolean isCancelled() {
         return getState() == State.finished && getProperty(PN_CANCELLED, Calendar.class) != null;
+    }
+
+    /**
+     * @return the 'current' time (finished : executed : created)
+     */
+    @Nullable
+    public Calendar getTime() {
+        return getProperty(PN_FINISHED, getProperty(PN_EXECUTED, getCreated()));
+    }
+
+    /**
+     * @return the set of target resources for the workflow
+     */
+    @Nonnull
+    public List<String> getTarget() {
+        return target;
     }
 
     /**

@@ -1,0 +1,52 @@
+@charset "UTF-8";
+
+/*
+ * extracted bootstrap values
+ */
+$bootstrap-default-color: #333;
+$bootstrap-default-bg: #fff;
+
+$bootstrap-link-color: #337ab7;
+$bootstrap-link-focus: #23527c;
+
+$bootstrap-color-danger: #a94442;
+$bootstrap-color-info: #337ab7;
+$bootstrap-color-mute: #777;
+$bootstrap-btn-menu-active-bg: #e6e6e6;
+
+$bootstrap-spacing-v: 10px;
+$bootstrap-spacing-h: 15px;
+
+/*
+ * stage settings
+ */
+
+$default-font-family: 'robotolight', sans-serif;
+$default-font-size: 17px;
+$hint-font-size: $default-font-size - 3;
+
+$edit-label-font-family: $default-font-family;
+$edit-label-font-size: $default-font-size;
+$edit-mono-font-size: $default-font-size - 1;
+$edit-hint-font-size: $default-font-size - 4;
+$edit-hint-color: #888;
+
+$edit-tools-layer: 2995;
+$dnd-target-layer: $edit-tools-layer - 8;
+$dnd-insert-layer: $edit-tools-layer - 2;
+
+$tools-pane-foreground: #eee;
+
+$tools-tile-background: rgba(160, 160, 160, 0.3);
+$tools-tile-bg-hover: rgba(160, 160, 160, 0.4);
+
+$tools-input-foreground: $tools-pane-foreground;
+$tools-input-background: $tools-tile-background;
+$tools-input-border-color: #888;
+
+$tools-pane-padding: 8px;
+
+$tools-pane-main-selection-color: #3392e3;
+$tools-pane-sec-selection-color: #929292;
+$tools-pane-main-selection-bg: rgba(255, 255, 255, 0.25);
+$tools-pane-sec-selection-bg: rgba(200, 200, 200, 0.25);

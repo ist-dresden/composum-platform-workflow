@@ -28,6 +28,7 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
+import org.apache.sling.tenant.Tenant;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Activate;
@@ -256,17 +257,33 @@ public class PlatformWorkflowService implements WorkflowService {
                                                     @Nullable final String tenantId,
                                                     @Nullable final WorkflowTaskInstance.State scope) {
         ArrayList<WorkflowTaskInstance> tasks = new ArrayList<>();
-        Resource folder = getInstanceFolder(context, tenantId, scope != null ? scope : WorkflowTaskInstance.State.pending);
-        if (folder != null) {
-            ResourceFilter filter = new TaskInstanceAssigneeFilter();
-            for (Resource entry : folder.getChildren()) {
-                if (filter.accept(entry)) {
-                    WorkflowTaskInstance task = loadInstance(context, entry.getPath());
+        ResourceFilter filter = new TaskInstanceAssigneeFilter();
+        if (StringUtils.isNotBlank(tenantId)) {
+            Resource folder = getInstanceFolder(context, tenantId, scope != null ? scope : WorkflowTaskInstance.State.pending);
+            if (folder != null) {
+                for (Resource taskRes : folder.getChildren()) {
+                    if (filter.accept(taskRes)) {
+                        WorkflowTaskInstance task = loadInstance(context, taskRes.getPath());
+                        tasks.add(task);
+                    }
+                }
+            }
+        } else {
+            ResourceResolver resolver = context.getResolver();
+            String query = "/jcr:root" + config.workflow_root()
+                    + "//" + (scope != null ? scope : WorkflowTaskInstance.State.pending) + "/*"
+                    + "[@sling:resourceType='" + INSTANCE_TYPE + "']";
+            @SuppressWarnings("deprecation")
+            Iterator<Resource> found = resolver.findResources(query, Query.XPATH);
+            while (found.hasNext()) {
+                Resource taskRes = found.next();
+                if (filter.accept(taskRes)) {
+                    WorkflowTaskInstance task = loadInstance(context, taskRes.getPath());
                     tasks.add(task);
                 }
             }
         }
-        tasks.sort(Comparator.comparing(WorkflowTask::getDate));
+        tasks.sort(Comparator.comparing(WorkflowTaskInstance::getTime));
         return tasks.iterator();
     }
 
@@ -321,10 +338,31 @@ public class PlatformWorkflowService implements WorkflowService {
     }
 
     /**
-     * @return the tenant id from the task resource path
+     * @return the tenant id derived from the hint (task instance path or another path or a tenant parameter)
      */
     @Override
-    public String getTenantId(Resource taskResource) {
+    public String getTenantId(@Nonnull final BeanContext context, @Nullable final String hint) {
+        if (StringUtils.isNotBlank(hint)) {
+            Resource resource = context.getResolver().getResource(
+                    hint.startsWith("/") ? hint : config.general_path() + "/" + hint);
+            if (resource != null) {
+                Tenant tenant = resource.adaptTo(Tenant.class);
+                if (tenant != null) {
+                    return tenant.getId();
+                }
+            }
+            WorkflowTaskInstance instance = loadInstanceRef(context, hint);
+            if (instance != null) {
+                return getTenantId(instance.getResource());
+            }
+        }
+        return null;
+    }
+
+    /**
+     * @return the tenant id from the task resource path
+     */
+    protected String getTenantId(Resource taskResource) {
         Matcher matcher = getPathMatcher(taskResource);
         if (matcher.matches()) {
             String tenantId = matcher.group(1);
@@ -351,8 +389,8 @@ public class PlatformWorkflowService implements WorkflowService {
     @Nullable
     public WorkflowTaskInstance addTask(@Nonnull final BeanContext context, @Nullable String tenantId,
                                         @Nullable final String previousTask, @Nonnull final String taskTemplate,
-                                        @Nullable final String comment, @Nullable final Map<String, Object> data,
-                                        @Nullable final MetaData actionMetaData) {
+                                        @Nonnull final List<String> target, @Nullable final Map<String, Object> data,
+                                        @Nullable final String comment, @Nullable final MetaData actionMetaData) {
         WorkflowTaskInstance taskInstance = null;
         final WorkflowTaskTemplate template = loadTemplate(context, taskTemplate);
         if (template != null) {
@@ -370,6 +408,7 @@ public class PlatformWorkflowService implements WorkflowService {
                 properties.put(JcrConstants.JCR_PRIMARYTYPE, ResourceUtil.TYPE_SLING_FOLDER);
                 properties.put(ResourceUtil.PROP_RESOURCE_TYPE, INSTANCE_TYPE);
                 properties.put(WorkflowTaskInstance.PN_TEMPLATE, template.getPath());
+                properties.put(WorkflowTaskInstance.PN_TARGET, target.toArray(new String[0]));
                 if (StringUtils.isNotBlank(assignee)) {
                     properties.put(WorkflowTaskInstance.PN_ASSIGNEE, assignee);
                 }
@@ -545,7 +584,9 @@ public class PlatformWorkflowService implements WorkflowService {
                         LOG.debug("creating next task; '{}.{}' -> '{}'...", taskInstance, option.getName(), template.getPath());
                     }
                     WorkflowTaskInstance added = addTask(serviceContext, null,
-                            taskInstance.getPath(), template.getPath(), comment, option.getData(), actionMetaData);
+                            taskInstance.getPath(), template.getPath(),
+                            taskInstance.getTarget(), option.getData(),
+                            comment, actionMetaData);
                     if (added == null) {
                         LOG.error("creation of next task of template '{}' failed", template.getPath());
                         return new WorkflowAction.Result(WorkflowAction.Status.failure);
@@ -1184,25 +1225,27 @@ public class PlatformWorkflowService implements WorkflowService {
         return pathPattern.matcher(path);
     }
 
-    protected Resource getTaskResource(@Nonnull BeanContext context, String pathOrId) {
+    protected Resource getTaskResource(@Nonnull final BeanContext context, @Nonnull String pathOrId) {
         Resource resource = null;
-        ResourceResolver resolver = context.getResolver();
-        if (!pathOrId.contains("/")) { // use task id for a query
-            String query = "/jcr:root" + config.workflow_root() + "//" + pathOrId;
-            //noinspection deprecation
-            Iterator<Resource> found = resolver.findResources(query, Query.XPATH);
-            if (found.hasNext()) {
-                resource = found.next();
-            }
-        } else { // use task path for retrieval
-            resource = resolver.getResource(pathOrId);
-            if (resource == null) {
-                Matcher matcher = getPathMatcher(pathOrId);
-                if (matcher.matches() && StringUtils.isNotBlank(matcher.group(4))) {
-                    for (WorkflowTaskInstance.State state : WorkflowTaskInstance.State.values()) {
-                        if ((resource = resolver.getResource(config.workflow_root()
-                                + "/" + matcher.group(1) + "/" + state.name() + "/" + matcher.group(4))) != null) {
-                            break;
+        if (StringUtils.isNotBlank(pathOrId = pathOrId.trim())) {
+            ResourceResolver resolver = context.getResolver();
+            if (!pathOrId.contains("/")) { // use task id for a query
+                String query = "/jcr:root" + config.workflow_root() + "//" + pathOrId;
+                //noinspection deprecation
+                Iterator<Resource> found = resolver.findResources(query, Query.XPATH);
+                if (found.hasNext()) {
+                    resource = found.next();
+                }
+            } else { // use task path for retrieval
+                resource = resolver.getResource(pathOrId);
+                if (resource == null) {
+                    Matcher matcher = getPathMatcher(pathOrId);
+                    if (matcher.matches() && StringUtils.isNotBlank(matcher.group(4))) {
+                        for (WorkflowTaskInstance.State state : WorkflowTaskInstance.State.values()) {
+                            if ((resource = resolver.getResource(config.workflow_root()
+                                    + "/" + matcher.group(1) + "/" + state.name() + "/" + matcher.group(4))) != null) {
+                                break;
+                            }
                         }
                     }
                 }

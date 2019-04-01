@@ -83,6 +83,47 @@
 
         workflow.StartDialog = core.components.FormDialog.extend({
 
+            initialize: function (config) {
+                var c = workflow.const.css;
+                core.components.FormDialog.prototype.initialize.apply(this, [config]);
+                this.$content = this.$('.' + c.base + c.dialog._start);
+                var $items = this.$content.find('.' + c.base + c.dialog._item);
+                $items.click(_.bind(this.selectTask, this));
+            },
+
+            selectTask: function (event) {
+                var c = workflow.const.css;
+                event.preventDefault();
+                var $selected = $(event.currentTarget).closest('.' + c.base + c.dialog._item);
+                if ($selected.length === 1) {
+                    var path = $selected.data('path');
+                    var form = $selected.data('form');
+                    var title = $selected.find('.' + c.dialog.title).text();
+                    var $hint = $selected.find('.' + c.dialog.hint);
+                    this.$el.find('.' + c.dialog.base + c.dialog._title + ' .' + c.dialog.type).text(title);
+                    this.$content.html($hint.length === 1 ? $hint[0].outerHTML : '');
+                    this.$content.append('<input name="wf.template" type="hidden" value="' + path + '"/>');
+                    if (form) {
+                        core.getHtml(path + '.start.html' + this.$el.data('path'), _.bind(function (content) {
+                            this.$content.append(content);
+                            this.setupForm();
+                        }, this));
+                    } else {
+                        this.setupForm();
+                    }
+                }
+                return false;
+            },
+
+            setupForm: function () {
+                this.setUpWidgets(this.$content);
+                var $target = this.$content.find('input[name="wf.target"]');
+                var path = this.$el.data('path');
+                if ($target.length > 0 && path && path.indexOf('/') === 0 && path.length > 1) {
+                    $($target[0]).val(path);
+                }
+            },
+
             doSubmit: function (callback) {
                 this.submitForm(callback);
             }

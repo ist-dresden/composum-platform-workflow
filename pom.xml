@@ -16,6 +16,11 @@
     <name>Composum Platform Workflow</name>
     <description>Maven parent for Composum Platform Workflow services</description>
 
+    <properties>
+        <composum.pages.version>1.0.0-SNAPSHOT</composum.pages.version>
+        <composum.platform.version>1.0.0-SNAPSHOT</composum.platform.version>
+    </properties>
+
     <modules>
         <module>bundle</module>
         <module>setup</module>
@@ -30,7 +35,7 @@
             <dependency>
                 <groupId>com.composum.sling.pages</groupId>
                 <artifactId>composum-sling-pages-commons-bundle</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
+                <version>${composum.pages.version}</version>
                 <scope>provided</scope>
             </dependency>
 
@@ -38,13 +43,13 @@
             <dependency>
                 <groupId>com.composum.sling.platform</groupId>
                 <artifactId>composum-sling-platform-models-bundle</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
+                <version>${composum.platform.version}</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>com.composum.sling.platform</groupId>
                 <artifactId>composum-sling-platform-commons-bundle</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
+                <version>${composum.platform.version}</version>
                 <scope>provided</scope>
             </dependency>
 

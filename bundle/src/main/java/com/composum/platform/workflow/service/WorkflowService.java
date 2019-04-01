@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 public interface WorkflowService extends SlingBeanFactory {
@@ -135,9 +136,9 @@ public interface WorkflowService extends SlingBeanFactory {
     WorkflowTaskInstance.State getState(@Nonnull BeanContext context, @Nonnull String pathOrId);
 
     /**
-     * @return the tenant id from the task resource path
+     * @return the tenant id derived from the hint (task instance path or another path or a tenant parameter)
      */
-    String getTenantId(Resource taskResource);
+    String getTenantId(@Nonnull BeanContext context, @Nullable String hint);
 
     /**
      * builds a new (or the next) task instance (for the 'inbox')
@@ -146,16 +147,17 @@ public interface WorkflowService extends SlingBeanFactory {
      * @param tenantId     the related tenant (selected by the user or inherited from the previous task)
      * @param previousTask the path of the previous instance which has triggered the new task (optional)
      * @param taskTemplate the path of the template of the new task
-     * @param comment      an optional comment added to the task
+     * @param target       the list of target resource paths
      * @param data         the properties for the task ('data' must be named as 'data/key')
+     * @param comment      an optional comment added to the task
      * @param metaData     the task meta data from the calling job
      * @return the model of the created instance
      */
     @Nullable
     WorkflowTaskInstance addTask(@Nonnull BeanContext context, @Nullable String tenantId,
                                  @Nullable String previousTask, @Nonnull String taskTemplate,
-                                 @Nullable final String comment, @Nullable Map<String, Object> data,
-                                 @Nullable final MetaData metaData);
+                                 @Nonnull List<String> target, @Nullable Map<String, Object> data,
+                                 @Nullable String comment, @Nullable MetaData metaData);
 
     /**
      * creates a job for execution of the a task instance (triggered by a user or another job)

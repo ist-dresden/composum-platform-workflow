@@ -9,6 +9,35 @@
 
     (function (workflow, core) {
 
+        workflow.InboxTable = workflow.InboxView.extend({
+
+            initialize: function (options) {
+                workflow.InboxView.prototype.initialize.apply(this, [options]);
+            },
+
+            onTaskSelected: function () {
+                this.$selected.find('.sel input').prop('checked', true);
+            },
+
+            onTaskAction: function () {
+                $(document).trigger('detail:reload', [this.path]);
+            },
+
+            onScopeChanged: function (scope) {
+                $(document).trigger('scope:changed', [this.path, scope]);
+            }
+        });
+
+        workflow.onTableLoad = function () {
+            var c = workflow.const.css;
+            workflow.inboxView = core.getView(
+                '.' + c.base + c._inbox, workflow.InboxTable);
+            workflow.inboxToolbar = core.getView(
+                '.' + c.toolbar.base + ' .' + c.toolbar.base + c.toolbar._toolbar, workflow.InboxToolbar);
+        };
+
+        workflow.onTableLoad();
+
         workflow.InboxConsoleTab = core.console.DetailTab.extend({
 
             initialize: function (options) {
@@ -21,7 +50,7 @@
             },
 
             reloadParameters: function () {
-                return {scope: workflow.inboxTable.scope};
+                return {scope: workflow.inboxView.scope};
             }
         });
 

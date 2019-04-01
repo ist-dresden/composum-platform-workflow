@@ -137,6 +137,12 @@
     </build>
     <dependencies>
 
+        <!-- Composum Pages -->
+        <dependency>
+            <groupId>com.composum.sling.pages</groupId>
+            <artifactId>composum-sling-pages-commons-bundle</artifactId>
+        </dependency>
+
         <!-- Composum Platform -->
         <dependency>
             <groupId>${project.groupId}</groupId>
