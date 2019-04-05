@@ -117,7 +117,7 @@ public abstract class WorkflowTask extends LoadedModel {
         public String getHint() {
             if (hint == null) {
                 WorkflowTaskTemplate template = getTemplate();
-                hint = i18n().get(PN_TITLE, template != null ? template.getHint() : "");
+                hint = i18n().get(PN_HINT, template != null ? template.getHint() : "");
             }
             return hint;
         }

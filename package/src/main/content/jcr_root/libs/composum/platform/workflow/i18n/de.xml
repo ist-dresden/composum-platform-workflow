@@ -9,6 +9,8 @@
 
         <comment jcr:primaryType="sling:MessageEntry"
                 sling:key="Comment" sling:message="Kommentar"/>
+        <message jcr:primaryType="sling:MessageEntry"
+                sling:key="Message" sling:message="Nachricht"/>
         <start jcr:primaryType="sling:MessageEntry"
                 sling:key="Start" sling:message="Start"/>
         <process jcr:primaryType="sling:MessageEntry"
@@ -81,7 +83,7 @@
         <cancellation-success jcr:primaryType="sling:MessageEntry"
                 sling:key="task cancellation done" sling:message="Task abgebrochen"/>
         <cancellation-failed jcr:primaryType="sling:MessageEntry"
-                sling:key="task cancellation failed" sling:message="der Abbruch der Task ist fehlgeschlagen"/>
+                sling:key="task cancellation failed" sling:message="der Abbruch ist selbst fehlgeschlagen"/>
         <task-option jcr:primaryType="sling:MessageEntry"
                 sling:key="task option" sling:message="Task-Option"/>
         <default-option jcr:primaryType="sling:MessageEntry"

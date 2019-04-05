@@ -498,6 +498,9 @@ public class PlatformWorkflowService implements WorkflowService {
             throws PersistenceException {
         WorkflowTaskInstance result = null;
         WorkflowTaskInstance task = loadInstance(context, taskInstancePath);
+        if (LOG.isInfoEnabled()) {
+            LOG.info("runTask '{}' ({})...", task, taskInstancePath);
+        }
         if (task != null) {
             if (task.getState() == WorkflowTaskInstance.State.pending) {
                 if (new TaskInstanceAssigneeFilter().accept(task.getResource())) {
@@ -610,7 +613,7 @@ public class PlatformWorkflowService implements WorkflowService {
         WorkflowAction.Result result = new WorkflowAction.Result();
         List<WorkflowActionManager.ActionReference> action = actionManager.getWorkflowAction(topic);
         if (LOG.isDebugEnabled()) {
-            LOG.debug("processAction; '{}' ({}{})...",
+            LOG.debug("processAction '{}' ({}{})...",
                     topic, taskInstance, option != null ? "." + option.getName() : "");
         }
         if (action != null) {
@@ -629,9 +632,17 @@ public class PlatformWorkflowService implements WorkflowService {
                 }
             }
         }
-        if (LOG.isDebugEnabled()) {
-            LOG.debug("processAction; '{}' ({}{}): {}",
-                    topic, taskInstance, option != null ? "." + option.getName() : "", result);
+        switch (result.getStatus()) {
+            case success:
+                if (LOG.isInfoEnabled()) {
+                    LOG.info("processAction '{}' ({}{}): {}",
+                            topic, taskInstance, option != null ? "." + option.getName() : "", result);
+                }
+                break;
+            default:
+                LOG.error("processAction '{}' ({}{}): {}",
+                        topic, taskInstance, option != null ? "." + option.getName() : "", result);
+                break;
         }
         return result;
     }
