@@ -37,7 +37,7 @@
                         this.$cancel.prop('disabled', !cancel || !graph);
                         break;
                     case 'running':
-                        this.$process.prop('disabled', true);
+                        this.$process.prop('disabled', !cancel || !graph);
                         this.$detail.prop('disabled', !graph);
                         this.$cancel.prop('disabled', !cancel || !graph);
                         break;

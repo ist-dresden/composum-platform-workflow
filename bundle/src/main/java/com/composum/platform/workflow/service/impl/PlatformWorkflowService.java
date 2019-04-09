@@ -502,7 +502,7 @@ public class PlatformWorkflowService implements WorkflowService {
             LOG.info("runTask '{}' ({})...", task, taskInstancePath);
         }
         if (task != null) {
-            if (task.getState() == WorkflowTaskInstance.State.pending) {
+            if (task.getState() != WorkflowTaskInstance.State.finished) {
                 if (new TaskInstanceAssigneeFilter().accept(task.getResource())) {
                     try (final ServiceContext serviceContext = new ServiceContext(context)) {
                         result = runTask(serviceContext, task, option, comment, data, actionMetaData, true);
@@ -514,7 +514,7 @@ public class PlatformWorkflowService implements WorkflowService {
                 }
             } else {
                 LOG.error("can't run task in state: '{}' ({})", task.getState(), taskInstancePath);
-                throw new PersistenceException("can't run task, task not pending");
+                throw new PersistenceException("can't run task, task not open");
             }
         } else {
             LOG.error("task not available: '{}'", taskInstancePath);
@@ -533,14 +533,21 @@ public class PlatformWorkflowService implements WorkflowService {
                                            @Nullable final MetaData actionMetaData,
                                            boolean commit)
             throws PersistenceException {
-        if (LOG.isDebugEnabled()) {
-            LOG.debug("runTask; '{}.{}'...", taskInstance, optionKey);
-        }
+        Resource moved = null;
         final MetaData metaData = getMetaData(actionMetaData, serviceContext, null, taskInstance);
-        Resource runningFolder = giveInstanceFolder(serviceContext, getTenantId(taskInstance.getResource()),
-                WorkflowTaskInstance.State.running);
-        Resource moved = serviceContext.getResolver().move(taskInstance.getPath(), runningFolder.getPath());
-        taskInstance = loadInstance(serviceContext, moved.getPath());
+        if (taskInstance.getState() != WorkflowTaskInstance.State.running) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("runTask; '{}.{}'...", taskInstance, optionKey);
+            }
+            Resource runningFolder = giveInstanceFolder(serviceContext, getTenantId(taskInstance.getResource()),
+                    WorkflowTaskInstance.State.running);
+            moved = serviceContext.getResolver().move(taskInstance.getPath(), runningFolder.getPath());
+            taskInstance = loadInstance(serviceContext, moved.getPath());
+        } else {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("re-runTask; '{}.{}'...", taskInstance, optionKey);
+            }
+        }
         if (taskInstance != null) {
             addTaskComment(serviceContext, taskInstance, comment);
             changeTaskData(serviceContext, taskInstance, PP_DATA, data, metaData);
