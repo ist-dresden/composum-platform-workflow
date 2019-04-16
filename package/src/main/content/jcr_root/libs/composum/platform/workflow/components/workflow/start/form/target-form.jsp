@@ -2,7 +2,7 @@
 <%@taglib prefix="sling" uri="http://sling.apache.org/taglibs/sling/1.2" %>
 <%@taglib prefix="cpn" uri="http://sling.composum.com/cpnl/1.0" %>
 <sling:defineObjects/>
-<div class="widget multi-form-widget form-group" data-name="wf.target">
+<div class="form-group widget multi-form-widget" data-name="wf.target">
     <label class="widget-label"><span
             class="label-text">${cpn:i18n(slingRequest,'Target')}</span><cpn:text
             tagName="span" class="widget-hint" i18n="true" type="rich"

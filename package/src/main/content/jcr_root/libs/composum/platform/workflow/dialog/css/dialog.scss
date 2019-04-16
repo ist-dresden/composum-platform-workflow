@@ -3,6 +3,7 @@
 .composum-platform-workflow {
 
     &_dialog {
+        z-index: 1049; // bootstrap modal dialog: 1050 (e.g. path select)
 
         .composum-form {
 
@@ -21,35 +22,61 @@
 
             &_header, &_content, &_footer {
 
-                &, & .table, & p {
+                &, & table, & p {
                     font-size: 14px;
                 }
 
-                & .table {
+                & table {
+
+                    td {
+                        padding: 0 0 5px 25px;
+                        vertical-align: top;
+
+                        &:first-child {
+                            padding-left: 0;
+                        }
+                    }
 
                     td.value {
                         width: 90%;
+                        padding: 0 5px 5px 15px;
                     }
 
                     p:last-child {
                         margin-bottom: 0;
+                    }
+
+                    .composum-platform-workflow {
+
+                        &_target-list {
+                            padding-left: 20px;
+                        }
+                    }
+                }
+            }
+
+            .table {
+
+                > tbody {
+
+                    > tr {
+
+                        > th, > td {
+                            padding: 0 5px !important;
+                        }
                     }
                 }
             }
 
             &_task-data {
 
-                .table {
+                table {
                     margin-bottom: 10px;
                 }
             }
 
             &_task-options {
                 border-top: 1px solid #e5e5e5;
-            }
-
-            &_form {
-                margin-bottom: 0;
             }
 
             &_button-close {
@@ -60,16 +87,14 @@
                 height: 27px;
                 border: none;
                 background: none;
-                font-family: "FontAwesome";
+                font-family: "FontAwesome", sans-serif;
                 font-size: 22px;
                 line-height: 22px;
                 color: #aaa;
             }
-        }
-
-        .workflow-dialog {
 
             &_form {
+                margin-bottom: 0;
 
                 .widget {
 
@@ -102,19 +127,49 @@
                         }
                     }
                 }
-            }
 
-            &_task-options {
+                .row {
+                    margin-bottom: 15px;
+
+                    &:last-child {
+                        margin-bottom: 0;
+                    }
+
+                    .form-group {
+                        margin-bottom: 0;
+                    }
+                }
             }
         }
 
         .composum-platform-workflow {
+
+            &_data-table {
+                margin-bottom: 5px;
+            }
+
+            &_target-list {
+                list-style: square;
+            }
+
+            &_message-body {
+                padding-top: 15px;
+                border-top: 1px solid #e5e5e5;
+
+                p:last-child {
+                    margin-bottom: 5px;
+                }
+            }
 
             &_option {
                 position: relative;
                 padding-bottom: 5px;
                 border-bottom: 1px solid #e5e5e5;
                 margin-bottom: 10px;
+
+                &:last-child {
+                    padding-bottom: 10px;
+                }
 
                 &-radio, &-label {
                     cursor: pointer;

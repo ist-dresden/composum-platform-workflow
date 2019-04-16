@@ -1,6 +1,5 @@
 package com.composum.platform.workflow.service;
 
-import com.composum.platform.models.simple.MetaData;
 import com.composum.platform.workflow.model.Workflow;
 import com.composum.platform.workflow.model.WorkflowTaskInstance;
 import com.composum.platform.workflow.model.WorkflowTaskTemplate;
@@ -8,6 +7,7 @@ import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.bean.SlingBeanFactory;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ValueMap;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
@@ -16,7 +16,6 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 public interface WorkflowService extends SlingBeanFactory {
 
@@ -150,14 +149,13 @@ public interface WorkflowService extends SlingBeanFactory {
      * @param target       the list of target resource paths
      * @param data         the properties for the task ('data' must be named as 'data/key')
      * @param comment      an optional comment added to the task
-     * @param metaData     the task meta data from the calling job
      * @return the model of the created instance
      */
     @Nullable
     WorkflowTaskInstance addTask(@Nonnull BeanContext context, @Nullable String tenantId,
                                  @Nullable String previousTask, @Nonnull String taskTemplate,
-                                 @Nonnull List<String> target, @Nullable Map<String, Object> data,
-                                 @Nullable String comment, @Nullable MetaData metaData);
+                                 @Nonnull List<String> target, @Nonnull ValueMap data,
+                                 @Nullable String comment);
 
     /**
      * creates a job for execution of the a task instance (triggered by a user or another job)
@@ -165,15 +163,13 @@ public interface WorkflowService extends SlingBeanFactory {
      * @param context      the current request context
      * @param taskInstance the path to the task instance ('inbox' resource)
      * @param option       the users choice for the next workflow step
-     * @param comment      an optional comment added to the task
      * @param data         the values for the task to execute ('data' must be named as 'data/key')
-     * @param metaData     the task meta data from the calling job
+     * @param comment      an optional comment added to the task
      * @return the model of the moved instance
      */
     @Nullable
     WorkflowTaskInstance runTask(@Nonnull BeanContext context, @Nonnull String taskInstance,
-                                 @Nullable String option, @Nullable String comment, @Nullable Map<String, Object> data,
-                                 @Nullable MetaData metaData)
+                                 @Nullable String option, @Nonnull ValueMap data, @Nullable String comment)
             throws PersistenceException;
 
     /**
@@ -182,15 +178,13 @@ public interface WorkflowService extends SlingBeanFactory {
      * @param context          the current request context
      * @param taskInstancePath the path to the task instance ('inbox' resource)
      * @param cancelled        should be 'true' if the workflow execution is cancelled
-     * @param comment          an optional comment added to the task
      * @param data             the values for the task to execute ('data' must be named as 'data/key')
-     * @param actionMetaData   the task meta data from the calling service
+     * @param comment          an optional comment added to the task
      */
     @Nullable
     WorkflowTaskInstance finishTask(@Nonnull BeanContext context,
                                     @Nonnull String taskInstancePath, boolean cancelled,
-                                    @Nullable String comment, @Nullable Map<String, Object> data,
-                                    @Nullable MetaData actionMetaData)
+                                    @Nonnull ValueMap data, @Nullable String comment)
             throws PersistenceException;
 
     /**

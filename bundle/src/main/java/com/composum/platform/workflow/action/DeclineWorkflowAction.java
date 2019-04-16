@@ -1,11 +1,11 @@
 package com.composum.platform.workflow.action;
 
-import com.composum.platform.models.simple.MetaData;
 import com.composum.platform.workflow.WorkflowAction;
 import com.composum.platform.workflow.model.WorkflowTaskInstance;
 import com.composum.platform.workflow.model.WorkflowTaskTemplate;
 import com.composum.sling.core.BeanContext;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.sling.api.resource.ValueMap;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
@@ -35,10 +35,9 @@ public class DeclineWorkflowAction implements WorkflowAction {
 
     @Override
     @Nonnull
-    public Result process(@Nonnull final BeanContext context,
-                          @Nonnull final WorkflowTaskInstance task,
-                          @Nullable final WorkflowTaskTemplate.Option option, @Nullable final String comment,
-                          @Nonnull final MetaData metaData) {
+    public Result process(@Nonnull final BeanContext context, @Nonnull final WorkflowTaskInstance task,
+                          @Nullable final WorkflowTaskTemplate.Option option, @Nullable final ValueMap data,
+                          @Nullable final String comment) {
         String answer = task.getData().get(PN_ANSWER, "");
         if (LOG.isDebugEnabled()) {
             LOG.debug("process '{}.{}'...", task.getName(), option != null ? option.getName() : "null");

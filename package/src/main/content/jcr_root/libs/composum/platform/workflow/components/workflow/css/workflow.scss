@@ -128,7 +128,7 @@
                     background: #f0f0f0;
                     padding: 2px 5px;
 
-                    &, .table, p {
+                    &, table, p {
                         font-size: 12px;
                         line-height: 16px;
                     }
@@ -137,7 +137,7 @@
                         margin: 3px 0;
                     }
 
-                    .table {
+                    table {
                         width: auto;
                         margin: 5px auto;
 
@@ -192,6 +192,13 @@
                         position: absolute;
                         top: 2px;
                         right: 2px;
+                        max-width: 160px;
+                        white-space: nowrap;
+                        overflow: hidden;
+                    }
+
+                    .data {
+                        overflow: hidden;
                     }
                 }
 
@@ -257,7 +264,7 @@
                         border-color: #c0c0c0;
                         color: #888;
 
-                        .table {
+                        table {
                             color: #888;
                         }
                     }
@@ -276,7 +283,7 @@
                         background: #f0f0f0;
                         padding: 1px 4px;
 
-                        &, .table, p {
+                        &, table, p {
                             font-size: 11px;
                             line-height: 14px;
                             color: #666;

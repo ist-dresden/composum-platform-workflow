@@ -24,29 +24,23 @@
                         </div>
                         <input name="_charset_" type="hidden" value="UTF-8"/>
                         <input name="path" type="hidden" value=""/>
-                        <div class="workflow-dialog_task-description">
-                            <sling:call script="task-description.jsp"/>
-                        </div>
-                        <div class="workflow-dialog_task-data">
-                            <sling:call script="task-data.jsp"/>
-                        </div>
+                        <sling:call script="content.jsp"/>
                     </div>
                     <div class="modal-body workflow-dialog_task-options">
                         <sling:call script="task-options.jsp"/>
-                        <div class="form-group">
+                        <div class="form-group widget text-area-widget">
                             <label class="widget-label"><span
                                     class="label-text">${cpn:i18n(slingRequest,'Comment')}</span><cpn:text
                                     tagName="span" class="widget-hint"
                                     i18n="true" value="an internal comment (optional)" type="rich"/></label>
-                            <textarea name="wf.comment" class="widget text-area-widget form-control"></textarea>
+                            <textarea name="wf.comment" class="form-control"></textarea>
                         </div>
                     </div>
                     <div class="modal-footer workflow-dialog_footer">
                         <button type="button"
                                 class="workflow-dialog_button-cancel workflow-dialog_button btn btn-default"
                                 data-dismiss="modal">${cpn:i18n(slingRequest,'Cancel')}</button>
-                        <button type="submit"
-                                class="workflow-dialog_button-submit workflow-dialog_button btn btn-primary">${cpn:i18n(slingRequest,'Process')}</button>
+                        <sling:call script="process-button.jsp"/>
                     </div>
                 </cpn:form>
             </div>

@@ -171,5 +171,19 @@
         ]
       }
     ]
+  },
+  {
+    "path": "/home/users",
+    "acl": [
+      {
+        "principal": "composum-platform-workflow-service",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:read"
+          }
+        ]
+      }
+    ]
   }
 ]

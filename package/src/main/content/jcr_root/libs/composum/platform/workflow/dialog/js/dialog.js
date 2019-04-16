@@ -34,8 +34,20 @@
                     event.preventDefault();
                 }
                 this.dialog.$forms.removeClass('fade in').addClass('hidden');
+                // 'name' -> 'data-name' to avoid side effects between the options
+                this.dialog.$forms.find('.widget [name]').each(function () {
+                    var $this = $(this);
+                    var name = $this.attr('name');
+                    $this.removeAttr('name').attr('data-name', name);
+                });
                 var chosen = this.dialog.getChosenOption();
                 if (chosen) {
+                    // 'data-name' -> 'name' for the chosen option
+                    chosen.$form.find('.widget [data-name]').each(function () {
+                        var $this = $(this);
+                        var name = $this.attr('data-name');
+                        $this.removeAttr('data-name').attr('name', name);
+                    });
                     chosen.$form.addClass('fade in').removeClass('hidden')
                 }
                 return false;
@@ -100,7 +112,7 @@
                     var form = $selected.data('form');
                     var title = $selected.find('.' + c.dialog.title).text();
                     var $hint = $selected.find('.' + c.dialog.hint);
-                    this.$el.find('.' + c.dialog.base + c.dialog._title + ' .' + c.dialog.type).text(title);
+                    this.$el.find('.' + c.dialog.base + c.dialog._title/* + ' .' + c.dialog.type*/).text(title);
                     this.$content.html($hint.length === 1 ? $hint[0].outerHTML : '');
                     this.$content.append('<input name="wf.template" type="hidden" value="' + path + '"/>');
                     if (form) {

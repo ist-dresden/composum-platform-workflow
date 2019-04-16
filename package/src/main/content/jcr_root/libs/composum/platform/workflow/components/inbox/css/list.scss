@@ -38,13 +38,38 @@
                 }
             }
 
-            &, .table, p {
+            &, table, p {
                 font-size: 14px;
                 line-height: 17px;
             }
 
             p {
                 margin: 3px 0;
+            }
+
+            table {
+                width: 100%;
+                margin: 5px 0;
+
+                > tbody {
+
+                    > tr {
+
+                        > th, > td {
+                            vertical-align: top;
+                        }
+
+                        > td.value {
+                            width: 90%;
+                            min-width: 120px;
+                            padding: 0 5px 0 15px;
+                        }
+
+                        p {
+                            margin: 0;
+                        }
+                    }
+                }
             }
 
             .table {
@@ -61,11 +86,6 @@
 
                         > td.value {
                             width: inherit;
-                            min-width: 120px;
-                        }
-
-                        p {
-                            margin: 0;
                         }
                     }
                 }

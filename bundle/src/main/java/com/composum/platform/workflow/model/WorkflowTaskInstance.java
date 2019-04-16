@@ -9,6 +9,7 @@ import org.apache.sling.api.resource.Resource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
@@ -53,6 +54,8 @@ public abstract class WorkflowTaskInstance extends WorkflowTask {
     private transient Collection<Option> options;
     private transient WorkflowTaskInstance previousTask;
     private transient WorkflowTaskInstance nextTask;
+    private transient List<WorkflowTaskInstance> head;
+    private transient List<WorkflowTaskInstance> tail;
 
     protected WorkflowTaskInstance(@Nonnull final WorkflowTaskTemplate template, @Nonnull final State state) {
         this.template = template;
@@ -234,6 +237,31 @@ public abstract class WorkflowTaskInstance extends WorkflowTask {
             nextTask = getTask(PN_NEXT);
         }
         return nextTask;
+    }
+
+    public List<WorkflowTaskInstance> getHead() {
+        if (head == null) {
+            head = retrieveHead();
+        }
+        return head;
+    }
+
+    public List<WorkflowTaskInstance> getTail() {
+        if (tail == null) {
+            tail = retrieveHead();
+            Collections.reverse(tail);
+        }
+        return tail;
+    }
+
+    protected List<WorkflowTaskInstance> retrieveHead() {
+        List<WorkflowTaskInstance> result = new ArrayList<>();
+        WorkflowTaskInstance instance = getPreviousTask();
+        while (instance != null) {
+            result.add(instance);
+            instance = instance.getPreviousTask();
+        }
+        return result;
     }
 
     // Object

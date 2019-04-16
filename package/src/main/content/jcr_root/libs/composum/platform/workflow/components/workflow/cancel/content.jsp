@@ -22,12 +22,12 @@
                 </div>
                 <input name="_charset_" type="hidden" value="UTF-8"/>
                 <sling:call script="graph.jsp"/>
-                <div class="form-group">
+                <div class="form-group widget text-area-widget">
                     <label class="widget-label"><span
                             class="label-text">${cpn:i18n(slingRequest,'Comment')}</span><cpn:text
                             tagName="span" class="widget-hint"
                             i18n="true" value="an internal comment (optional)" type="rich"/></label>
-                    <textarea name="wf.comment" class="widget text-area-widget form-control"></textarea>
+                    <textarea name="wf.comment" class="form-control"></textarea>
                 </div>
             </div>
             <div class="modal-footer workflow-dialog_footer">

@@ -16,8 +16,10 @@ import org.apache.sling.api.SlingHttpServletResponse;
 import org.apache.sling.api.request.RequestDispatcherOptions;
 import org.apache.sling.api.request.RequestParameter;
 import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.ServletResolverConstants;
+import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.apache.sling.tenant.Tenant;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
@@ -228,7 +230,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
                     String comment = request.getParameter(PARAM_COMMENT);
                     WorkflowTaskInstance taskInstance = workflowService.addTask(context, tenantId, null, taskTemplate,
                             target != null ? Arrays.asList(target) : Collections.emptyList(), getTaskData(request),
-                            comment, null);
+                            comment);
                     if (taskInstance != null) {
                         jsonStatus(request, response, true, i18n(request, "Success"),
                                 taskInstance.getTemplate().getHintAdded(i18n(request, "task created")), null);
@@ -260,7 +262,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 String optionKey = request.getParameter(PARAM_OPTION);
                 String comment = request.getParameter(PARAM_COMMENT);
                 WorkflowTaskInstance taskInstance = workflowService.runTask(context, resource.getPath(),
-                        optionKey, comment, getTaskData(request), null);
+                        optionKey, getTaskData(request), comment);
                 if (taskInstance != null) {
                     WorkflowTaskTemplate.Option option = taskInstance.getTemplate().getOption(optionKey);
                     jsonStatus(request, response, true,
@@ -294,7 +296,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 BeanContext context = new BeanContext.Servlet(getServletContext(), bundleContext, request, response);
                 String comment = request.getParameter(PARAM_COMMENT);
                 WorkflowTaskInstance taskInstance = workflowService.finishTask(context, resource.getPath(),
-                        true, comment, getTaskData(request), null);
+                        true, getTaskData(request), comment);
                 if (taskInstance != null) {
                     jsonStatus(request, response, true, i18n(request, "Success"), i18n(request, "task cancellation done"), null);
                 } else {
@@ -314,7 +316,8 @@ public class WorkflowServlet extends AbstractServiceServlet {
      *
      * @return the 'data' map of the received form
      */
-    protected Map<String, Object> getTaskData(@Nonnull final SlingHttpServletRequest request) {
+    @Nonnull
+    protected ValueMap getTaskData(@Nonnull final SlingHttpServletRequest request) {
         Map<String, Object> data = new HashMap<>();
         Map<String, String> typeHint = new HashMap<>();
         for (RequestParameter parameter : request.getRequestParameterList()) {
@@ -345,7 +348,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 }
             }
         }
-        return data;
+        return new ValueMapDecorator(data);
     }
 
     // JSON answer

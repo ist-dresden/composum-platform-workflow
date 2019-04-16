@@ -1,9 +1,9 @@
 package com.composum.platform.workflow;
 
-import com.composum.platform.models.simple.MetaData;
 import com.composum.platform.workflow.model.WorkflowTaskInstance;
 import com.composum.platform.workflow.model.WorkflowTaskTemplate;
 import com.composum.sling.core.BeanContext;
+import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.event.jobs.consumer.JobExecutor;
 import org.slf4j.helpers.MessageFormatter;
 
@@ -116,16 +116,15 @@ public interface WorkflowAction {
     /**
      * executes the action of a task with the chosen option
      *
-     * @param context  the current request context (user session)
-     * @param task     the task to process
-     * @param option   the chosen option
-     * @param comment  an optional comment
-     * @param metaData a set of probably useful properties
+     * @param context the current request context (user session)
+     * @param task    the task to process
+     * @param option  the chosen option
+     * @param data    the task data value union
+     * @param comment an optional comment
      */
     @Nonnull
-    Result process(@Nonnull final BeanContext context,
-                   @Nonnull final WorkflowTaskInstance task,
-                   @Nullable final WorkflowTaskTemplate.Option option, @Nullable final String comment,
-                   @Nonnull final MetaData metaData)
+    Result process(@Nonnull BeanContext context, @Nonnull WorkflowTaskInstance task,
+                   @Nullable WorkflowTaskTemplate.Option option, @Nonnull ValueMap data,
+                   @Nullable String comment)
             throws Exception;
 }
