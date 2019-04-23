@@ -30,6 +30,10 @@ public class WorkflowDialogModel extends WorkflowServiceModel {
         return getTask().getTitle();
     }
 
+    public String getInitDialog() {
+        return getTask().getTemplate().getInitDialog();
+    }
+
     // initial alert message
 
     public boolean isAlertSet() {

@@ -105,6 +105,14 @@ public abstract class WorkflowTaskTemplate extends WorkflowTask {
     }
 
     /**
+     * @return the JS code snippet to initialize the dialog if present
+     */
+    @Nonnull
+    public String getInitDialog() {
+        return getProperty(PN_INIT_DIALOG, "");
+    }
+
+    /**
      * @param key the options name in the repository; if 'null' the default option is used
      * @return the option if available otherwise 'null'
      */

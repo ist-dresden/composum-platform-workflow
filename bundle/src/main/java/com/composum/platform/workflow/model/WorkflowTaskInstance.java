@@ -137,16 +137,17 @@ public abstract class WorkflowTaskInstance extends WorkflowTask {
     }
 
     /**
-     * @return the last relevant date (executed, finished, created) as formatted string
+     * @return the last relevant date (executed, finished, cancelled, created) as formatted string
      */
     @Nonnull
     public String getDate() {
-        return getDate(PN_EXECUTED, PN_FINISHED, JcrConstants.JCR_CREATED);
+        return getDate(PN_EXECUTED, PN_FINISHED, PN_CANCELLED, JcrConstants.JCR_CREATED);
     }
 
     @Nullable
     public Calendar getFinished() {
-        return getProperty(PN_FINISHED, Calendar.class);
+        Calendar finished = getProperty(PN_FINISHED, Calendar.class);
+        return finished != null ? finished : getProperty(PN_CANCELLED, Calendar.class);
     }
 
     // driven by template
@@ -239,6 +240,9 @@ public abstract class WorkflowTaskInstance extends WorkflowTask {
         return nextTask;
     }
 
+    /**
+     * @return the list of predecessors in time course starting with the first task
+     */
     public List<WorkflowTaskInstance> getHead() {
         if (head == null) {
             head = retrieveHead();
@@ -246,15 +250,27 @@ public abstract class WorkflowTaskInstance extends WorkflowTask {
         return head;
     }
 
+    protected List<WorkflowTaskInstance> retrieveHead() {
+        List<WorkflowTaskInstance> result = new ArrayList<>();
+        WorkflowTaskInstance instance = getPreviousTask();
+        while (instance != null) {
+            result.add(0, instance);
+            instance = instance.getPreviousTask();
+        }
+        return result;
+    }
+
+    /**
+     * @return the list of predecessors in reverse order starting with the direct predecessor
+     */
     public List<WorkflowTaskInstance> getTail() {
         if (tail == null) {
-            tail = retrieveHead();
-            Collections.reverse(tail);
+            tail = retrieveTail();
         }
         return tail;
     }
 
-    protected List<WorkflowTaskInstance> retrieveHead() {
+    protected List<WorkflowTaskInstance> retrieveTail() {
         List<WorkflowTaskInstance> result = new ArrayList<>();
         WorkflowTaskInstance instance = getPreviousTask();
         while (instance != null) {

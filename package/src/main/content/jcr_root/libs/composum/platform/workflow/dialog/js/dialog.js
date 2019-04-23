@@ -63,12 +63,20 @@
                 this.$radios = this.$options.find('.' + c.base + c._option + c._radio);
                 this.$forms = this.$options.find('.' + c.base + c._option + c._form);
                 var dialog = this;
+                // noinspection JSMismatchedCollectionQueryUpdate
                 var options = this.options = [];
                 this.$options.find('.' + c.base + c._option).each(function () {
                     var option = core.getView(this, workflow.DialogOption);
                     option.dialog = dialog;
                     options.push(option);
                 });
+                var init = this.$el.data('init');
+                if (init) {
+                    init = eval(init);
+                    if (_.isFunction(init)) {
+                        init.call(this);
+                    }
+                }
             },
 
             getChosenOption: function () {
@@ -131,7 +139,7 @@
                 this.setUpWidgets(this.$content);
                 var $target = this.$content.find('input[name="wf.target"]');
                 var path = this.$el.data('path');
-                if ($target.length > 0 && path && path.indexOf('/') === 0 && path.length > 1) {
+                if ($target.length > 0 && path && path.indexOf('/content/') === 0 && path.length > 1) {
                     $($target[0]).val(path);
                 }
             },

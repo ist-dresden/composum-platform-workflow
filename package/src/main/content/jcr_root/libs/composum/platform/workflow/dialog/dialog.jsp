@@ -3,7 +3,7 @@
 <%@taglib prefix="cpn" uri="http://sling.composum.com/cpnl/1.0" %>
 <sling:defineObjects/>
 <cpn:component id="wfDialog" type="com.composum.platform.workflow.model.WorkflowDialogModel" scope="request">
-    <div class="composum-platform-workflow_dialog dialog modal fade">
+    <div class="composum-platform-workflow_dialog dialog modal fade" data-init="${wfDialog.initDialog}">
         <div class="modal-dialog">
             <div class="modal-content form-panel">
                 <cpn:form class="widget-form workflow-dialog_form" method="${wfDialog.action.method}"
@@ -28,13 +28,7 @@
                     </div>
                     <div class="modal-body workflow-dialog_task-options">
                         <sling:call script="task-options.jsp"/>
-                        <div class="form-group widget text-area-widget">
-                            <label class="widget-label"><span
-                                    class="label-text">${cpn:i18n(slingRequest,'Comment')}</span><cpn:text
-                                    tagName="span" class="widget-hint"
-                                    i18n="true" value="an internal comment (optional)" type="rich"/></label>
-                            <textarea name="wf.comment" class="form-control"></textarea>
-                        </div>
+                        <sling:call script="comment.jsp"/>
                     </div>
                     <div class="modal-footer workflow-dialog_footer">
                         <button type="button"

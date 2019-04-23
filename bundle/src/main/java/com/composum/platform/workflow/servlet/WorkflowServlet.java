@@ -20,7 +20,6 @@ import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.ServletResolverConstants;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
-import org.apache.sling.tenant.Tenant;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.ComponentContext;
@@ -41,7 +40,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +65,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
     private static final Logger LOG = LoggerFactory.getLogger(WorkflowServlet.class);
 
     public static final String PARAM_TENANT_ID = "tenant.id";
+    public static final String PARAM_ASSIGNEE = "wf.assignee";
     public static final String PARAM_TEMPLATE = "wf.template";
     public static final String PARAM_TARGET = "wf.target";
     public static final String PARAM_OPTION = "wf.option";
@@ -217,20 +216,10 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 throws IOException {
             try {
                 BeanContext context = new BeanContext.Servlet(getServletContext(), bundleContext, request, response);
-                String tenantId = request.getParameter(PARAM_TENANT_ID);
-                if (StringUtils.isBlank(tenantId)) {
-                    Tenant tenant = resource.adaptTo(Tenant.class);
-                    if (tenant != null) {
-                        tenantId = tenant.getId();
-                    }
-                }
                 String taskTemplate = request.getParameter(PARAM_TEMPLATE);
                 if (StringUtils.isNotBlank(taskTemplate)) {
-                    String[] target = request.getParameterValues(PARAM_TARGET);
-                    String comment = request.getParameter(PARAM_COMMENT);
-                    WorkflowTaskInstance taskInstance = workflowService.addTask(context, tenantId, null, taskTemplate,
-                            target != null ? Arrays.asList(target) : Collections.emptyList(), getTaskData(request),
-                            comment);
+                    WorkflowTaskInstance taskInstance = workflowService.addTask(context, getRequestData(request),
+                            null, taskTemplate, getParameterValues(request, PARAM_TARGET), getTaskData(request));
                     if (taskInstance != null) {
                         jsonStatus(request, response, true, i18n(request, "Success"),
                                 taskInstance.getTemplate().getHintAdded(i18n(request, "task created")), null);
@@ -260,9 +249,8 @@ public class WorkflowServlet extends AbstractServiceServlet {
             try {
                 BeanContext context = new BeanContext.Servlet(getServletContext(), bundleContext, request, response);
                 String optionKey = request.getParameter(PARAM_OPTION);
-                String comment = request.getParameter(PARAM_COMMENT);
-                WorkflowTaskInstance taskInstance = workflowService.runTask(context, resource.getPath(),
-                        optionKey, getTaskData(request), comment);
+                WorkflowTaskInstance taskInstance = workflowService.runTask(context, getRequestData(request),
+                        resource.getPath(), optionKey, getTaskData(request));
                 if (taskInstance != null) {
                     WorkflowTaskTemplate.Option option = taskInstance.getTemplate().getOption(optionKey);
                     jsonStatus(request, response, true,
@@ -294,9 +282,8 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 throws IOException {
             try {
                 BeanContext context = new BeanContext.Servlet(getServletContext(), bundleContext, request, response);
-                String comment = request.getParameter(PARAM_COMMENT);
-                WorkflowTaskInstance taskInstance = workflowService.finishTask(context, resource.getPath(),
-                        true, getTaskData(request), comment);
+                WorkflowTaskInstance taskInstance = workflowService.finishTask(context, getRequestData(request),
+                        resource.getPath(), true, getTaskData(request));
                 if (taskInstance != null) {
                     jsonStatus(request, response, true, i18n(request, "Success"), i18n(request, "task cancellation done"), null);
                 } else {
@@ -307,6 +294,34 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 jsonStatus(request, response, false, i18n(request, "Failed"), ex.getMessage(), null);
             }
         }
+    }
+
+    protected ValueMap getRequestData(SlingHttpServletRequest request) {
+        Map<String, Object> data = new HashMap<>();
+        addParameter(request, PARAM_TENANT_ID, data);
+        addParameter(request, PARAM_ASSIGNEE, data);
+        addParameter(request, PARAM_COMMENT, data);
+        return new ValueMapDecorator(data);
+    }
+
+    protected void addParameter(SlingHttpServletRequest request, String name, Map<String, Object> data) {
+        String value = request.getParameter(name);
+        if (value != null) {
+            data.put(name, value);
+        }
+    }
+
+    protected List<String> getParameterValues(SlingHttpServletRequest request, String name) {
+        List<String> result = new ArrayList<>();
+        String[] values = request.getParameterValues(name);
+        if (values != null) {
+            for (String value : values) {
+                if (StringUtils.isNotBlank(value)) {
+                    result.add(value);
+                }
+            }
+        }
+        return result;
     }
 
     /**

@@ -36,8 +36,7 @@ public class DeclineWorkflowAction implements WorkflowAction {
     @Override
     @Nonnull
     public Result process(@Nonnull final BeanContext context, @Nonnull final WorkflowTaskInstance task,
-                          @Nullable final WorkflowTaskTemplate.Option option, @Nullable final ValueMap data,
-                          @Nullable final String comment) {
+                          @Nullable final WorkflowTaskTemplate.Option option, @Nullable final ValueMap data) {
         String answer = task.getData().get(PN_ANSWER, "");
         if (LOG.isDebugEnabled()) {
             LOG.debug("process '{}.{}'...", task.getName(), option != null ? option.getName() : "null");

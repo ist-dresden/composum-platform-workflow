@@ -6,6 +6,7 @@ import com.composum.platform.models.simple.ViewValueMap;
 import com.composum.sling.core.BeanContext;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.JcrConstants;
+import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
@@ -45,6 +46,7 @@ public abstract class WorkflowTask extends LoadedModel {
     public static final String PN_AUTO_RUN = "autoRun";
     public static final String PN_DEFAULT = "default";
     public static final String PN_DIALOG = "dialog";
+    public static final String PN_INIT_DIALOG = "initDialog";
     public static final String PN_FORM_TYPE = "formType";
 
     /** task subnode names (property paths) */
@@ -177,8 +179,13 @@ public abstract class WorkflowTask extends LoadedModel {
     @Override
     public void initialize(BeanContext context, Resource resource) {
         super.initialize(context, new LoadedResource(resource));
-        Resource requested = context.getResolver().resolve(context.getRequest().getRequestURI());
-        isCurrent = resource.getPath().equals(requested.getPath());
+        SlingHttpServletRequest request = context.getRequest();
+        if (request != null) {
+            Resource requested = context.getResolver().resolve(request.getRequestURI());
+            isCurrent = resource.getPath().equals(requested.getPath());
+        } else {
+            isCurrent = false;
+        }
     }
 
     @Nonnull

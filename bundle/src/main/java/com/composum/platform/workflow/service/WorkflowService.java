@@ -20,7 +20,6 @@ import java.util.List;
 public interface WorkflowService extends SlingBeanFactory {
 
     /** meta data properties for placeholder replacement */
-    String META_TENANT_ID = "tenantId";
     String META_USER_ID = "userId";
     String META_OPTION = "option";
 
@@ -143,48 +142,46 @@ public interface WorkflowService extends SlingBeanFactory {
      * builds a new (or the next) task instance (for the 'inbox')
      *
      * @param context      the current request context
-     * @param tenantId     the related tenant (selected by the user or inherited from the previous task)
+     * @param requestData  the meta data extracted from the request (tenant, assignee, comment)
      * @param previousTask the path of the previous instance which has triggered the new task (optional)
      * @param taskTemplate the path of the template of the new task
      * @param target       the list of target resource paths
      * @param data         the properties for the task ('data' must be named as 'data/key')
-     * @param comment      an optional comment added to the task
      * @return the model of the created instance
      */
     @Nullable
-    WorkflowTaskInstance addTask(@Nonnull BeanContext context, @Nullable String tenantId,
+    WorkflowTaskInstance addTask(@Nonnull BeanContext context, @Nonnull ValueMap requestData,
                                  @Nullable String previousTask, @Nonnull String taskTemplate,
-                                 @Nonnull List<String> target, @Nonnull ValueMap data,
-                                 @Nullable String comment);
+                                 @Nonnull List<String> target, @Nonnull ValueMap data);
 
     /**
      * creates a job for execution of the a task instance (triggered by a user or another job)
      *
      * @param context      the current request context
+     * @param requestData  the meta data extracted from the request (tenant, assignee, comment)
      * @param taskInstance the path to the task instance ('inbox' resource)
      * @param option       the users choice for the next workflow step
-     * @param data         the values for the task to execute ('data' must be named as 'data/key')
-     * @param comment      an optional comment added to the task
+     * @param data         the data values ('data/...') for the task to execute
      * @return the model of the moved instance
      */
     @Nullable
-    WorkflowTaskInstance runTask(@Nonnull BeanContext context, @Nonnull String taskInstance,
-                                 @Nullable String option, @Nonnull ValueMap data, @Nullable String comment)
+    WorkflowTaskInstance runTask(@Nonnull BeanContext context, @Nonnull ValueMap requestData,
+                                 @Nonnull String taskInstance, @Nullable String option, @Nonnull ValueMap data)
             throws PersistenceException;
 
     /**
      * finishes the execution of the given task
      *
-     * @param context          the current request context
-     * @param taskInstancePath the path to the task instance ('inbox' resource)
-     * @param cancelled        should be 'true' if the workflow execution is cancelled
-     * @param data             the values for the task to execute ('data' must be named as 'data/key')
-     * @param comment          an optional comment added to the task
+     * @param context      the current request context
+     * @param requestData  the meta data extracted from the request (tenant, assignee, comment)
+     * @param taskInstance the path to the task instance ('inbox' resource)
+     * @param cancelled    should be 'true' if the workflow execution is cancelled
+     * @param data         the values for the task to execute ('data' must be named as 'data/key')
      */
     @Nullable
-    WorkflowTaskInstance finishTask(@Nonnull BeanContext context,
-                                    @Nonnull String taskInstancePath, boolean cancelled,
-                                    @Nonnull ValueMap data, @Nullable String comment)
+    WorkflowTaskInstance finishTask(@Nonnull BeanContext context, @Nonnull ValueMap requestData,
+                                    @Nonnull String taskInstance, boolean cancelled,
+                                    @Nonnull ValueMap data)
             throws PersistenceException;
 
     /**

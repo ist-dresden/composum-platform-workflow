@@ -120,11 +120,9 @@ public interface WorkflowAction {
      * @param task    the task to process
      * @param option  the chosen option
      * @param data    the task data value union
-     * @param comment an optional comment
      */
     @Nonnull
     Result process(@Nonnull BeanContext context, @Nonnull WorkflowTaskInstance task,
-                   @Nullable WorkflowTaskTemplate.Option option, @Nonnull ValueMap data,
-                   @Nullable String comment)
+                   @Nullable WorkflowTaskTemplate.Option option, @Nonnull ValueMap data)
             throws Exception;
 }
