@@ -25,7 +25,7 @@
         <module>bundle</module>
         <module>setup</module>
         <module>package</module>
-        <module>test</module>
+        <!--module>test</module- build this separate -->
     </modules>
 
     <dependencyManagement>
