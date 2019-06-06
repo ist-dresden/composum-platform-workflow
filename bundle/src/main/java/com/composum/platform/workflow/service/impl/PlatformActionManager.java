@@ -3,6 +3,7 @@ package com.composum.platform.workflow.service.impl;
 import com.composum.platform.workflow.WorkflowAction;
 import com.composum.platform.workflow.service.WorkflowActionManager;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.builder.CompareToBuilder;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.apache.sling.event.jobs.consumer.JobConsumer;
 import org.osgi.framework.BundleContext;
@@ -122,6 +123,7 @@ public class PlatformActionManager implements WorkflowActionManager {
             this.ranking = !(property instanceof Integer) ? 0 : (Integer) property;
         }
 
+        @Override
         public WorkflowAction getAction() {
             if (action == null) {
                 action = bundleContext.getService(actionReference);
@@ -129,24 +131,29 @@ public class PlatformActionManager implements WorkflowActionManager {
             return action;
         }
 
-        public long getServieId() {
+        @Override
+        public long getServiceId() {
             return serviceId;
         }
 
+        @Override
         public int getRanking() {
             return ranking;
         }
 
         @Override
         public int compareTo(@Nonnull final ActionReference other) {
-            return Integer.compare(getRanking(), other.getRanking());
+            CompareToBuilder builder = new CompareToBuilder();
+            builder.append(getRanking(), other.getRanking());
+            builder.append(getServiceId(), other.getServiceId());
+            return builder.toComparison();
         }
 
         // Object
 
         @Override
         public boolean equals(Object other) {
-            return other instanceof ActionReference && ((ActionReference) other).getServieId() == getServieId();
+            return other instanceof ActionReference && ((ActionReference) other).getServiceId() == getServiceId();
         }
 
         @Override

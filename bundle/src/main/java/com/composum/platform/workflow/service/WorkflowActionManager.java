@@ -10,7 +10,7 @@ public interface WorkflowActionManager {
 
     interface ActionReference extends Comparable<ActionReference> {
 
-        long getServieId();
+        long getServiceId();
 
         int getRanking();
 

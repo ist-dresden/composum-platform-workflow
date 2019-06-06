@@ -109,7 +109,7 @@ public class PlatformWorkflowService implements WorkflowService {
     protected static final String WRITE_PRIVILEGE_KEY = "rep:write";
     protected static final String[] TASK_PRIVILEGE_KEYS = new String[]{"jcr:read"};
 
-    protected class TaskInstanceAssigneeFilter implements ResourceFilter {
+    protected class TaskInstanceAssigneeFilter extends ResourceFilter.AbstractResourceFilter {
 
         @Override
         public boolean accept(Resource resource) {
@@ -1070,6 +1070,7 @@ public class PlatformWorkflowService implements WorkflowService {
             return new ValueMapDecorator(Collections.emptyMap());
         }
 
+        @Override
         @Nonnull
         public String getDialog() {
             return DEFAULT_DIALOG;
