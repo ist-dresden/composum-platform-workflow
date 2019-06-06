@@ -1,6 +1,6 @@
 package com.composum.platform.workflow.model;
 
-import com.composum.sling.cpnl.CpnlElFunctions;
+import com.composum.sling.core.util.I18N;
 import org.apache.commons.lang3.StringUtils;
 
 public class WorkflowDialogModel extends WorkflowServiceModel {
@@ -15,7 +15,7 @@ public class WorkflowDialogModel extends WorkflowServiceModel {
     private transient WorkflowDialogAction action;
 
     public String i18n(String text) {
-        return CpnlElFunctions.i18n(request, text);
+        return I18N.get(request, text);
     }
 
     public WorkflowTaskInstance getTask() {

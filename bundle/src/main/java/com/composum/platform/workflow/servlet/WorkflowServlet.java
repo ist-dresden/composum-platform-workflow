@@ -8,7 +8,7 @@ import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.AbstractServiceServlet;
 import com.composum.sling.core.servlet.ServletOperation;
 import com.composum.sling.core.servlet.ServletOperationSet;
-import com.composum.sling.cpnl.CpnlElFunctions;
+import com.composum.sling.core.util.I18N;
 import com.google.gson.stream.JsonWriter;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.SlingHttpServletRequest;
@@ -401,8 +401,8 @@ public class WorkflowServlet extends AbstractServiceServlet {
         if (StringUtils.isNotBlank(text)) {
             writer.name("response").beginObject();
             writer.name("level").value(success ? "info" : "error");
-            writer.name("title").value(CpnlElFunctions.i18n(request, title));
-            writer.name("text").value(CpnlElFunctions.i18n(request, text));
+            writer.name("title").value(I18N.get(request, title));
+            writer.name("text").value(I18N.get(request, text));
             writer.endObject();
         }
         if (messages != null) {
@@ -410,8 +410,8 @@ public class WorkflowServlet extends AbstractServiceServlet {
             for (Message message : messages) {
                 writer.beginObject();
                 writer.name("level").value("error");
-                writer.name("text").value(CpnlElFunctions.i18n(request, message.text));
-                writer.name("hint").value(CpnlElFunctions.i18n(request, message.hint));
+                writer.name("text").value(I18N.get(request, message.text));
+                writer.name("hint").value(I18N.get(request, message.hint));
                 writer.endObject();
             }
             writer.endArray();
@@ -426,7 +426,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
     }
 
     protected String i18n(SlingHttpServletRequest request, String text) {
-        return CpnlElFunctions.i18n(request, text);
+        return I18N.get(request, text);
     }
 }
 
