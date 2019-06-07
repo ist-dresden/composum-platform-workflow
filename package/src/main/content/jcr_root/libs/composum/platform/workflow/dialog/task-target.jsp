@@ -7,7 +7,7 @@
     <cpn:div tagName="ul" test="${not empty task.target}" class="composum-platform-workflow_target-list">
         <c:forEach items="${task.target}" var="target">
             <li class="composum-platform-workflow_task-target"><cpn:link href="${target}"
-                                                                         format="/bin/pages.html{}">${target}</cpn:link></li>
+                                                                         format="/bin/pages.html{}">${cpn:path(target)}</cpn:link></li>
         </c:forEach>
     </cpn:div>
 </cpn:component>
