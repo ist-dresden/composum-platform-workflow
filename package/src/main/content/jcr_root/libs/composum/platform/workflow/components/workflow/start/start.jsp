@@ -39,7 +39,7 @@
                                             data-path="${workflow.path}" data-form="${workflow.formType}">
                                             <label><input type="radio" class="composum-platform-workflow_radio"/>
                                                 <cpn:text class="title">${workflow.title}</cpn:text>
-                                                <cpn:text class="hint" type="rich">${workflow.hint}</cpn:text>
+                                                <cpn:text class="short-desc" type="rich">${workflow.hint}</cpn:text>
                                             </label>
                                         </li>
                                     </c:forEach>

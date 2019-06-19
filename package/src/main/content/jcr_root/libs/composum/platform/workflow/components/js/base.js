@@ -31,7 +31,7 @@
                     _start: '_start-content',
                     type: 'type',
                     title: 'title',
-                    hint: 'hint',
+                    hint: 'short-desc',
                     _options: '_task-options'
                 }
             },

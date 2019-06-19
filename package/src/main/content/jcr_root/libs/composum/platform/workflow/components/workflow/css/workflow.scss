@@ -66,13 +66,13 @@
                     left: 15px;
                 }
 
-                label, .title, .hint, p {
+                label, .title, .short-desc, p {
                     display: inline-block;
                     width: 100%;
                     cursor: pointer;
                 }
 
-                .hint {
+                .short-desc {
                     font-weight: normal;
 
                     p {
