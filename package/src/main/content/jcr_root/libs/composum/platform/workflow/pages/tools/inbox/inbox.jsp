@@ -5,7 +5,7 @@
 <%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <cpp:defineFrameObjects/>
 <cpp:element var="frame" type="com.composum.pages.stage.model.edit.FrameModel" mode="none"
-             cssBase="composum-platform-workflow" cssAdd="composum-pages-tools">
+             cssBase="composum-platform-workflow" cssAdd="composum-pages-tools browse-actions">
     <div class="composum-pages-tools_actions btn-toolbar">
         <div class="composum-pages-tools_left-actions">
             <div class="composum-pages-tools_button-group btn-group btn-group-sm" role="group">

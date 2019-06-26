@@ -3,4 +3,4 @@
         jcr:primaryType="sling:Folder"
         sling:resourceType="composum/nodes/commons/clientlib"
         jcr:description="the clientlib extension for the Pages edit frame"
-        category="[composum.pages.edit.frame]"/>
+        category="[composum.pages.edit.frame,composum.pages.browse.frame]"/>
