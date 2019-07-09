@@ -55,16 +55,19 @@ public class WorkflowTransitionTask implements SlingBean {
         initialize(context, context.getResource());
     }
 
+    @Nonnull
     @Override
     public String getName() {
         return getTask().getName();
     }
 
+    @Nonnull
     @Override
     public String getPath() {
         return getTask().getPath();
     }
 
+    @Nonnull
     @Override
     public String getType() {
         return getTask().getType();

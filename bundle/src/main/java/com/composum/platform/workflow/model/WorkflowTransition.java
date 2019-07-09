@@ -7,6 +7,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
 
+import javax.annotation.Nonnull;
 import java.util.List;
 
 import static com.composum.platform.workflow.model.Workflow.RA_WORKFLOW;
@@ -34,16 +35,19 @@ public class WorkflowTransition implements SlingBean {
         initialize(context, context.getResource());
     }
 
+    @Nonnull
     @Override
     public String getName() {
         return getOption().getName();
     }
 
+    @Nonnull
     @Override
     public String getPath() {
         return getOption().getPath();
     }
 
+    @Nonnull
     @Override
     public String getType() {
         return getOption().getType();
