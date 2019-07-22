@@ -58,11 +58,11 @@
         <!-- Composum Platform -->
         <dependency>
             <groupId>com.composum.sling.platform</groupId>
-            <artifactId>composum-sling-platform-models-bundle</artifactId>
+            <artifactId>composum-platform-models-bundle</artifactId>
         </dependency>
         <dependency>
             <groupId>com.composum.sling.platform</groupId>
-            <artifactId>composum-sling-platform-commons-bundle</artifactId>
+            <artifactId>composum-platform-commons-bundle</artifactId>
         </dependency>
 
         <!-- Composum Nodes (Core) -->
