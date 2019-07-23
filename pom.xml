@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.composum.sling.platform</groupId>
         <artifactId>composum-platform</artifactId>
-        <version>1.0.2</version>
+        <version>1.0.3</version>
     </parent>
 
     <groupId>com.composum.platform</groupId>
@@ -18,7 +18,7 @@
 
     <properties>
         <composum.pages.version>1.0.0-SNAPSHOT</composum.pages.version>
-        <composum.platform.version>1.0.0-SNAPSHOT</composum.platform.version>
+        <composum.platform.version>1.0.3</composum.platform.version>
     </properties>
 
     <modules>

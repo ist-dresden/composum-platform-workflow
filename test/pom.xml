@@ -90,12 +90,6 @@
     <profiles>
 
         <profile>
-            <id>installBundle</id>
-        </profile>
-        <profile>
-            <id>installPackage</id>
-        </profile>
-        <profile>
             <id>installTestContent</id>
             <activation>
                 <property>
