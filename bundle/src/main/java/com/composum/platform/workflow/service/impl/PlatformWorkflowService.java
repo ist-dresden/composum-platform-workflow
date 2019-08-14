@@ -628,8 +628,8 @@ public class PlatformWorkflowService implements WorkflowService {
                                                   @Nonnull final TaskData taskData) {
         WorkflowAction.Result result = new WorkflowAction.Result();
         List<WorkflowActionManager.ActionReference> action = actionManager.getWorkflowAction(topic);
-        if (LOG.isDebugEnabled()) {
-            LOG.debug("processAction '{}' ({}{})...",
+        if (LOG.isInfoEnabled()) {
+            LOG.info("processAction '{}' ({}{})...",
                     topic, taskInstance, option != null ? "." + option.getName() : "");
         }
         if (action != null) {
@@ -650,12 +650,12 @@ public class PlatformWorkflowService implements WorkflowService {
         switch (result.getStatus()) {
             case success:
                 if (LOG.isInfoEnabled()) {
-                    LOG.info("processAction '{}' ({}{}): {}",
+                    LOG.info("processAction.success '{}' ({}{}): {}",
                             topic, taskInstance, option != null ? "." + option.getName() : "", result);
                 }
                 break;
             default:
-                LOG.error("processAction '{}' ({}{}): {}",
+                LOG.error("processAction.failed '{}' ({}{}): {}",
                         topic, taskInstance, option != null ? "." + option.getName() : "", result);
                 break;
         }
