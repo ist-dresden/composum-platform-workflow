@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static com.composum.platform.workflow.model.WorkflowTask.PP_DATA;
+import static javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
 import static javax.servlet.http.HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
 import static javax.servlet.http.HttpServletResponse.SC_OK;
 
@@ -105,7 +106,9 @@ public class WorkflowServlet extends AbstractServiceServlet {
         return true;
     }
 
-    /** setup of the servlet operation set for this servlet instance */
+    /**
+     * setup of the servlet operation set for this servlet instance
+     */
     @Override
     public void init() throws ServletException {
         super.init();
@@ -221,17 +224,17 @@ public class WorkflowServlet extends AbstractServiceServlet {
                     WorkflowTaskInstance taskInstance = workflowService.addTask(context, getRequestData(request),
                             null, taskTemplate, getParameterValues(request, PARAM_TARGET), getTaskData(request));
                     if (taskInstance != null) {
-                        jsonStatus(request, response, true, i18n(request, "Success"),
-                                taskInstance.getTemplate().getHintAdded(i18n(request, "task created")), null);
+                        jsonStatus(request, response, true, "Success",
+                                taskInstance.getTemplate().getHintAdded("task created"), null);
                     } else {
-                        jsonStatus(request, response, false, i18n(request, "Failed"), i18n(request, "task not created"), null);
+                        jsonStatus(request, response, false, "Failed", "task not created", null);
                     }
                 } else {
-                    jsonStatus(request, response, false, i18n(request, "Failed"), i18n(request, "not template"), null);
+                    jsonStatus(request, response, false, "Failed", "not template", null);
                 }
             } catch (PersistenceException ex) {
                 LOG.error(ex.getMessage(), ex);
-                jsonStatus(request, response, false, i18n(request, "Failed"), ex.getMessage(), null);
+                jsonStatus(request, response, false, "Failed", ex.getMessage(), null);
             }
         }
     }
@@ -261,11 +264,11 @@ public class WorkflowServlet extends AbstractServiceServlet {
                                     ? i18n(request, "invalid option") + "!? '" + optionKey + "'"
                                     : i18n(request, "default option used")), null);
                 } else {
-                    jsonStatus(request, response, false, i18n(request, "Failed"), i18n(request, "task job creation failed"), null);
+                    jsonStatus(request, response, false, "Failed", "task job creation failed", null);
                 }
             } catch (PersistenceException ex) {
                 LOG.error(ex.getMessage(), ex);
-                jsonStatus(request, response, false, i18n(request, "Failed"), ex.getMessage(), null);
+                jsonStatus(request, response, false, "Failed", ex.getMessage(), null);
             }
         }
     }
@@ -291,7 +294,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 }
             } catch (PersistenceException ex) {
                 LOG.error(ex.getMessage(), ex);
-                jsonStatus(request, response, false, i18n(request, "Failed"), ex.getMessage(), null);
+                jsonStatus(request, response, false, i18n(request, i18n(request, "Failed")), i18n(request, ex.getMessage()), null);
             }
         }
     }
@@ -393,7 +396,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
         } else {
             LOG.warn("{}:{} failed: '{}'", request.getMethod(), request.getRequestURI(), text);
         }
-        response.setStatus(success ? SC_OK : SC_INTERNAL_SERVER_ERROR);
+        response.setStatus(success ? SC_OK : SC_BAD_REQUEST);
         response.setContentType("application/json; charset=UTF-8");
         JsonWriter writer = new JsonWriter(response.getWriter());
         writer.beginObject();

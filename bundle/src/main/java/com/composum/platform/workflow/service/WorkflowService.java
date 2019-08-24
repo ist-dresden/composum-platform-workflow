@@ -19,11 +19,15 @@ import java.util.List;
 
 public interface WorkflowService extends SlingBeanFactory {
 
-    /** meta data properties for placeholder replacement */
+    /**
+     * meta data properties for placeholder replacement
+     */
     String META_USER_ID = "userId";
     String META_OPTION = "option";
 
-    /** the template or option data value to trigger removal of this data during task processing */
+    /**
+     * the template or option data value to trigger removal of this data during task processing
+     */
     String DATA_KEY_REMOVE = "@{remove}";
 
     @ObjectClassDefinition(
@@ -152,7 +156,8 @@ public interface WorkflowService extends SlingBeanFactory {
     @Nullable
     WorkflowTaskInstance addTask(@Nonnull BeanContext context, @Nonnull ValueMap requestData,
                                  @Nullable String previousTask, @Nonnull String taskTemplate,
-                                 @Nonnull List<String> target, @Nonnull ValueMap data);
+                                 @Nonnull List<String> target, @Nonnull ValueMap data)
+            throws PersistenceException;
 
     /**
      * creates a job for execution of the a task instance (triggered by a user or another job)

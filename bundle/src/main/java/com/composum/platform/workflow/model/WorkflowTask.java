@@ -31,6 +31,7 @@ public abstract class WorkflowTask extends LoadedModel {
 
     public static final String PN_CATEGORY = "category";
     public static final String PN_TOPIC = "topic";
+    public static final String PN_VALIDATION = "validation";
 
     public static final String PN_TARGET = "target";
     public static final String PN_ASSIGNEE = "assignee";

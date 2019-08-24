@@ -2,6 +2,9 @@ package com.composum.platform.workflow.service.impl;
 
 import com.composum.platform.commons.resource.ValueUnion;
 import com.composum.platform.workflow.WorkflowAction;
+import com.composum.platform.workflow.WorkflowException;
+import com.composum.platform.workflow.WorkflowTopic;
+import com.composum.platform.workflow.WorkflowValidator;
 import com.composum.platform.workflow.model.Workflow;
 import com.composum.platform.workflow.model.WorkflowTask;
 import com.composum.platform.workflow.model.WorkflowTaskInstance;
@@ -26,6 +29,7 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
+import org.apache.sling.commons.classloader.DynamicClassLoaderManager;
 import org.apache.sling.tenant.Tenant;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
@@ -136,6 +140,9 @@ public class PlatformWorkflowService implements WorkflowService {
 
     @Reference
     protected ResourceResolverFactory resolverFactory;
+
+    @Reference
+    private DynamicClassLoaderManager dynamicClassLoaderManager;
 
     @Reference
     protected PermissionsService permissionsService;
@@ -375,6 +382,26 @@ public class PlatformWorkflowService implements WorkflowService {
         return null;
     }
 
+    @Nonnull
+    protected WorkflowTopic.Result validateTask(@Nonnull final BeanContext context,
+                                                @Nonnull final WorkflowTaskTemplate template,
+                                                @Nonnull final List<String> target,
+                                                @Nonnull final ValueMap taskData) {
+        WorkflowTopic.Result result = new WorkflowTopic.Result();
+        final String validation = template.getValidation();
+        if (StringUtils.isNotBlank(validation)) {
+            try {
+                Class<?> validatorClass = dynamicClassLoaderManager.getDynamicClassLoader().loadClass(validation);
+                WorkflowValidator validator = (WorkflowValidator) validatorClass.newInstance();
+                result = validator.validate(context, template, target, taskData);
+            } catch (InstantiationException | ClassNotFoundException | IllegalAccessException ex) {
+                LOG.error(ex.getMessage(), ex);
+                result = new WorkflowTopic.Result(WorkflowTopic.Status.failure, new WorkflowTopic.Message(WorkflowTopic.Level.error, ex.getLocalizedMessage()));
+            }
+        }
+        return result;
+    }
+
     /**
      * builds a new (the next) task (for the 'inbox')
      *
@@ -390,7 +417,8 @@ public class PlatformWorkflowService implements WorkflowService {
     @Nullable
     public WorkflowTaskInstance addTask(@Nonnull final BeanContext context, @Nonnull ValueMap requestData,
                                         @Nullable final String previousTask, @Nonnull final String taskTemplate,
-                                        @Nonnull final List<String> target, @Nullable final ValueMap data) {
+                                        @Nonnull final List<String> target, @Nullable final ValueMap data)
+            throws PersistenceException {
         WorkflowTaskInstance taskInstance = null;
         final WorkflowTaskTemplate template = loadTemplate(context, taskTemplate);
         if (template != null) {
@@ -405,6 +433,10 @@ public class PlatformWorkflowService implements WorkflowService {
                 final TaskData taskData = new TaskData(serviceContext, previous, requestData, data);
                 final String initiator = (String) taskData.get(META_USER_ID);
                 final String assignee = getAssignee(serviceContext, template, taskData);
+                WorkflowTopic.Result validationResult = validateTask(context, template, target, taskData);
+                if (validationResult.getStatus() != WorkflowTopic.Status.success) {
+                    throw new WorkflowException(validationResult);
+                }
                 final Map<String, Object> properties = new HashMap<>();
                 properties.put(JcrConstants.JCR_PRIMARYTYPE, ResourceUtil.TYPE_SLING_FOLDER);
                 properties.put(ResourceUtil.PROP_RESOURCE_TYPE, INSTANCE_TYPE);
@@ -452,10 +484,8 @@ public class PlatformWorkflowService implements WorkflowService {
                 } else {
                     LOG.error("created task not available ({})", path);
                 }
-            } catch (IllegalArgumentException ex) {
+            } catch (LoginException | IllegalArgumentException ex) {
                 LOG.error(ex.toString());
-            } catch (Exception ex) {
-                LOG.error(ex.getMessage(), ex);
             }
         } else {
             LOG.error("task template not available: '{}'", taskTemplate);
@@ -564,7 +594,8 @@ public class PlatformWorkflowService implements WorkflowService {
      */
     protected WorkflowAction.Result processOption(@Nonnull final ServiceContext serviceContext, @Nonnull ValueMap requestData,
                                                   @Nonnull final WorkflowTaskInstance taskInstance,
-                                                  @Nullable final String optionKey, @Nonnull final ValueMap data) {
+                                                  @Nullable final String optionKey, @Nonnull final ValueMap data)
+            throws PersistenceException {
         WorkflowAction.Result result = new WorkflowAction.Result();
         WorkflowTaskTemplate.Option option = taskInstance.getTemplate().getOption(optionKey);
         if (LOG.isDebugEnabled()) {

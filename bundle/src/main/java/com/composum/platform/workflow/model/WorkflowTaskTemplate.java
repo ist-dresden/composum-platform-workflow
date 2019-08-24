@@ -60,6 +60,11 @@ public abstract class WorkflowTaskTemplate extends WorkflowTask {
     }
 
     @Nonnull // but probably empty
+    public String getValidation() {
+        return getProperty(PN_VALIDATION, "");
+    }
+
+    @Nonnull // but probably empty
     public String getTopic() {
         return getProperty(PN_TOPIC, "");
     }
