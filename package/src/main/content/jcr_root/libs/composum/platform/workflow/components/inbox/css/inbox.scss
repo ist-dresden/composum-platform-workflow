@@ -26,28 +26,28 @@
 
                 &_pending {
 
-                    .sel {
+                    .task-sel {
                         background-color: #d9edf7;
                     }
                 }
 
                 &_running {
 
-                    .sel {
+                    .task-sel {
                         background-color: #fcf8e3;
                     }
                 }
 
                 &_finished {
 
-                    .sel {
+                    .task-sel {
                         background-color: #dff0d8;
                     }
                 }
 
                 &_cancelled {
 
-                    .sel {
+                    .task-sel {
                         background-color: #f2dede;
                     }
                 }
@@ -85,20 +85,20 @@
 
                     th, td {
 
-                        &.sel {
+                        &.task-sel {
                             width: 32px;
                             text-align: center;
                         }
 
-                        &.date {
+                        &.task-date {
                             width: 130px;
                         }
 
-                        &.title {
+                        &.task-title {
                             width: 200px;
                         }
 
-                        &.assignee {
+                        &.task-assignee {
                             width: 200px;
                         }
                     }

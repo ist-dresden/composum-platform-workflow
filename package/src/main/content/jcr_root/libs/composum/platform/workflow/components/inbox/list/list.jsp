@@ -13,23 +13,23 @@
                         <li class="composum-platform-workflow_inbox-task item list-item task-state_${task.cancelled?'cancelled':task.state}${task.autoRun?' auto-run':''}"
                             data-path="${task.path}" data-state="${task.state}" data-graph="${task.graphAvailable}"
                             data-cancel="${task.cancellingAllowed}">
-                            <div class="meta">
-                                <div class="date"><span class="icon fa fa-calendar-o"></span>${task.date}</div>
-                                <cpn:div test="${not empty task.userId}" class="assignee"><span
+                            <div class="task-meta">
+                                <div class="task-date"><span class="icon fa fa-calendar-o"></span>${task.date}</div>
+                                <cpn:div test="${not empty task.userId}" class="task-assignee"><span
                                         class="icon fa fa-user-o"></span>${cpn:text(task.userId)}</cpn:div>
                             </div>
-                            <div class="title"><span
+                            <div class="task-title"><span
                                     class="icon fa fa-${task.autoRun?'cog':'check-square-o'}"></span>${cpn:text(task.title)}
                             </div>
-                            <div class="hint">${cpn:rich(slingRequest,task.hint)}</div>
+                            <div class="task-hint">${cpn:rich(slingRequest,task.hint)}</div>
                             <c:if test="${not empty task.dialog}">
-                                <div class="data"><sling:include resource="${task.resource}"
+                                <div class="task-data"><sling:include resource="${task.resource}"
                                                                  resourceType="${task.dialog}"
                                                                  replaceSelectors="task-data"/></div>
                             </c:if>
-                            <cpn:div test="${not empty task.topic}" class="topic"><span
-                                    class="icon fa fa-play-circle-o"></span>${cpn:path(task.topic)}</cpn:div>
-                            <div class="template"><span class="icon fa fa-wrench"></span>${cpn:path(task.template.path)}
+                            <cpn:div test="${not empty task.topic}" class="task-topic"><span
+                                    class="task-icon fa fa-play-circle-o"></span>${cpn:path(task.topic)}</cpn:div>
+                            <div class="task-template"><span class="task-icon fa fa-wrench"></span>${cpn:path(task.template.path)}
                             </div>
                         </li>
                     </c:forEach>

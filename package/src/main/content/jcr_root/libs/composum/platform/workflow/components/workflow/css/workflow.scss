@@ -66,7 +66,7 @@
                     left: 15px;
                 }
 
-                label, .title, .short-desc, p {
+                label, .task-title, .short-desc, p {
                     display: inline-block;
                     width: 100%;
                     cursor: pointer;
@@ -161,7 +161,7 @@
                         }
                     }
 
-                    .title {
+                    .task-title {
                         margin: 3px 0 2px;
                         font-weight: bold;
                         line-height: 18px;
@@ -173,7 +173,7 @@
                         }
                     }
 
-                    .assignee, .date, .topic, .template {
+                    .task-assignee, .task-date, .task-topic, .task-template {
                         width: 100%;
                         font-size: 10px;
                         line-height: 11px;
@@ -188,7 +188,7 @@
                         }
                     }
 
-                    .meta {
+                    .task-meta {
                         position: absolute;
                         top: 2px;
                         right: 2px;
@@ -197,7 +197,7 @@
                         overflow: hidden;
                     }
 
-                    .data {
+                    .task-data {
                         overflow: hidden;
                     }
                 }
@@ -232,7 +232,7 @@
                             .task-node {
                                 border-color: #4c4;
 
-                                .topic {
+                                .task-topic {
 
                                     .icon {
                                         color: #4c4;
@@ -246,7 +246,7 @@
                             .task-node {
                                 border-color: #c66;
 
-                                .topic {
+                                .task-topic {
 
                                     .icon {
                                         color: #c66;
@@ -293,12 +293,12 @@
                             margin: 0;
                         }
 
-                        .title {
+                        .task-title {
                             font-weight: bold;
                             line-height: 18px;
                         }
 
-                        .topic {
+                        .task-topic {
                             width: 100%;
                             margin: 2px 0;
                             font-size: 10px;
@@ -321,7 +321,7 @@
                             border-style: solid;
                             border-color: #4c4;
 
-                            .topic {
+                            .task-topic {
 
                                 .icon {
                                     color: #4c4;

@@ -16,7 +16,7 @@
             },
 
             onTaskSelected: function () {
-                this.$selected.find('.sel input').prop('checked', true);
+                this.$selected.find('.task-sel input').prop('checked', true);
             },
 
             onTaskAction: function () {

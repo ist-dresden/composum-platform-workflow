@@ -11,9 +11,9 @@
         <div class="graph-transition-fg">
             <div class="composum-platform-workflow_task_option${workflow_transition.current?' current-task':''}${workflow_transition.chosen?' chosen-option':''}${workflow_transition.workflowEnd?' workflow-end':''}">
                 <div class="option-node">
-                    <div class="title">${cpn:text(workflow_transition.title)}</div>
-                    <div class="hint">${cpn:rich(slingRequest,workflow_transition.hint)}</div>
-                    <cpn:div test="${not empty workflow_transition.topic}" class="topic"><span
+                    <div class="task-title">${cpn:text(workflow_transition.title)}</div>
+                    <div class="task-hint">${cpn:rich(slingRequest,workflow_transition.hint)}</div>
+                    <cpn:div test="${not empty workflow_transition.topic}" class="task-topic"><span
                             class="icon fa fa-play-circle-o"></span>${cpn:text(workflow_transition.topic)}</cpn:div>
                 </div>
             </div>

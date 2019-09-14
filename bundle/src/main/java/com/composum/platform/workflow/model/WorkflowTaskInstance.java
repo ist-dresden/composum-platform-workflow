@@ -3,12 +3,21 @@ package com.composum.platform.workflow.model;
 import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.bean.BeanFactory;
+import com.composum.sling.core.util.ValueEmbeddingReader;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -30,9 +39,13 @@ import static com.composum.platform.workflow.model.Workflow.RA_WORKFLOW_CONDENSE
 @BeanFactory(serviceClass = WorkflowService.class)
 public abstract class WorkflowTaskInstance extends WorkflowTask {
 
+    private static final Logger LOG = LoggerFactory.getLogger(WorkflowTaskInstance.class);
+
     public enum State {pending, running, finished}
 
-    /** the resource type to identify a resource as workflow task instance */
+    /**
+     * the resource type to identify a resource as workflow task instance
+     */
     public static final String INSTANCE_TYPE = "composum/platform/workflow/task/instance";
 
     public static final String PN_INITIATOR = "initiator";
@@ -68,7 +81,9 @@ public abstract class WorkflowTaskInstance extends WorkflowTask {
         target = Arrays.asList(resource.getValueMap().get(PN_TARGET, new String[0]));
     }
 
-    /** must be implemented by the service */
+    /**
+     * must be implemented by the service
+     */
     @Nullable
     protected abstract WorkflowTaskInstance getTask(String propertyName);
 
@@ -169,7 +184,18 @@ public abstract class WorkflowTaskInstance extends WorkflowTask {
 
     @Nonnull
     public String getHint() {
-        return getTemplate().getHint();
+        String hint = getTemplate().getHint();
+        if (StringUtils.isNotBlank(hint)) {
+            StringWriter writer = new StringWriter();
+            try (Reader textReader = new ValueEmbeddingReader(new StringReader(hint), getData(),
+                    context.getLocale(), getClass())) {
+                IOUtils.copy(textReader, writer);
+            } catch (IOException ex) {
+                LOG.error(ex.getMessage(), ex);
+            }
+            hint = writer.toString();
+        }
+        return hint;
     }
 
     public boolean isAutoRun() {
