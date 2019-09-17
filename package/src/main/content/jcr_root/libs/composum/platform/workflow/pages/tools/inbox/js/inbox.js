@@ -42,11 +42,9 @@
             },
 
             reload: function () {
-                // FIXME scope selection (CMP-62)
                 var tenant = this.$el.data('tenant') || '*';
-                var scope = ''; // site
-                scope = '?tenant.id=' + tenant; // tenant or all (*)
-                core.getHtml('/bin/cpm/platform/workflow.taskList.html' + (this.path ? this.path : '') + scope,
+                var scope = '?tenant.id=' + tenant; // tenant or all (*)
+                core.getHtml('/bin/cpm/platform/workflow.taskList.pending.html' + (this.path ? this.path : '') + scope,
                     _.bind(function (content) {
                         workflow.$inboxParent.html(content);
                         workflow.inboxView = core.getView('.composum-platform-workflow_inbox', workflow.PagesInboxList);

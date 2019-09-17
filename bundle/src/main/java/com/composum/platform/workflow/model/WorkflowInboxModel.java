@@ -32,6 +32,7 @@ public class WorkflowInboxModel extends WorkflowServiceModel {
             if (request != null) {
                 if (scope == null) {
                     try {
+                        // a parameter 'scope' is declaring the session attribute to remember the scope
                         scope = WorkflowTaskInstance.State.valueOf(getRequest().getParameter(PARAM_SCOPE));
                         request.getSession(true).setAttribute(SA_INBOX_SCOPE, scope.name());
                     } catch (Exception ignore) {
@@ -39,6 +40,19 @@ public class WorkflowInboxModel extends WorkflowServiceModel {
                 }
                 if (scope == null) {
                     try {
+                        // a selector 'scope' is overrriding the scope stored on the session
+                        for (String selector : request.getRequestPathInfo().getSelectors()) {
+                            try {
+                                scope = WorkflowTaskInstance.State.valueOf(selector);
+                            } catch (Exception ignore) {
+                            }
+                        }
+                    } catch (Exception ignore) {
+                    }
+                }
+                if (scope == null) {
+                    try {
+                        // use scope stored in the session if no parameter and no selector found
                         scope = WorkflowTaskInstance.State.valueOf(
                                 (String) request.getSession(true).getAttribute(SA_INBOX_SCOPE));
                     } catch (Exception ignore) {
