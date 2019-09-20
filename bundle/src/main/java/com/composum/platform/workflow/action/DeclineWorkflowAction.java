@@ -19,7 +19,7 @@ import static com.composum.platform.workflow.action.DeclineWorkflowAction.TOPIC_
 
 @Component(
         property = {
-                Constants.SERVICE_DESCRIPTION + "=Decline Workflow Job",
+                Constants.SERVICE_DESCRIPTION + "=Composum Platform Workflow Decline Workflow Job",
                 WorkflowAction.PROPERTY_TOPICS + "=" + TOPIC_DECLINE
         }
 )
