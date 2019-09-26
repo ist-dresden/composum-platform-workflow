@@ -280,7 +280,7 @@ public class PlatformWorkflowService implements WorkflowService {
         } else {
             ResourceResolver resolver = context.getResolver();
             String query = "/jcr:root" + config.workflow_root()
-                    + "//" + (scope != null ? scope : WorkflowTaskInstance.State.pending) + "/*"
+                    + "/*/" + (scope != null ? scope : WorkflowTaskInstance.State.pending) + "/*"
                     + "[@sling:resourceType='" + INSTANCE_TYPE + "']";
             @SuppressWarnings("deprecation")
             Iterator<Resource> found = resolver.findResources(query, Query.XPATH);
@@ -1291,7 +1291,7 @@ public class PlatformWorkflowService implements WorkflowService {
         if (StringUtils.isNotBlank(pathOrId = pathOrId.trim())) {
             ResourceResolver resolver = context.getResolver();
             if (!pathOrId.contains("/")) { // use task id for a query
-                String query = "/jcr:root" + config.workflow_root() + "//" + pathOrId;
+                String query = "/jcr:root" + config.workflow_root() + "/*/*/" + pathOrId;
                 //noinspection deprecation
                 Iterator<Resource> found = resolver.findResources(query, Query.XPATH);
                 if (found.hasNext()) {
