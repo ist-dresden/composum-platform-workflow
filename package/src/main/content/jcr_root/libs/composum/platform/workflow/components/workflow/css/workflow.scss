@@ -10,17 +10,23 @@ $workflow-dialog-background: #eee;
 
         .composum-platform-workflow {
 
-            &_transition-to {
-                background-color: $workflow-page-background;
-            }
+            &_workflow {
 
-            &_graph {
+                .composum-platform-workflow {
 
-                &_task, &_transition {
-
-                    > .graph-task-bg-left, > .graph-task-bg-right,
-                    > .graph-transition-bg-left, > .graph-transition-bg-right {
+                    &_transition-to {
                         background-color: $workflow-page-background;
+                    }
+
+                    &_graph {
+
+                        &_task, &_transition {
+
+                            > .graph-task-bg-left, > .graph-task-bg-right,
+                            > .graph-transition-bg-left, > .graph-transition-bg-right {
+                                background-color: $workflow-page-background;
+                            }
+                        }
                     }
                 }
             }
@@ -143,7 +149,8 @@ $workflow-dialog-background: #eee;
 
                 .task-node {
                     position: relative;
-                    width: 300px;
+                    min-width: 300px;
+                    max-width: 400px;
                     margin: 0 auto;
                     border: 2px solid #666;
                     background: #f0f0f0;
@@ -213,7 +220,7 @@ $workflow-dialog-background: #eee;
                         position: absolute;
                         top: 2px;
                         right: 2px;
-                        max-width: 160px;
+                        max-width: 250px;
                         white-space: nowrap;
                         overflow: hidden;
                     }
