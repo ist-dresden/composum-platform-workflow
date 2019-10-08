@@ -2,5 +2,6 @@
 <jcr:root xmlns:sling="http://sling.apache.org/jcr/sling/1.0" xmlns:jcr="http://www.jcp.org/jcr/1.0"
         jcr:primaryType="sling:OrderedFolder"
         depends="[category:composum.components.widgets]"
-        embed="[/libs/composum/platform/workflow/components/js/base.js,
+        embed="[jslibs/iframeResizer/(4.*:4.0.4)/js/iframeResizer.contentWindow.js,
+                /libs/composum/platform/workflow/components/js/base.js,
                 /libs/composum/platform/workflow/dialog/js/dialog.js]"/>

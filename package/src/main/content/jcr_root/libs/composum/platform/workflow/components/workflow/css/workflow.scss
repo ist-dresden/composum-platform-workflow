@@ -1,9 +1,30 @@
 @charset "UTF-8";
 
+$workflow-page-background: #fff;
+$workflow-dialog-background: #eee;
+
 .composum-platform-workflow {
 
     &_body {
-        background-color: #e4e4e4;
+        background-color: $workflow-page-background;
+
+        .composum-platform-workflow {
+
+            &_transition-to {
+                background-color: $workflow-page-background;
+            }
+
+            &_graph {
+
+                &_task, &_transition {
+
+                    > .graph-task-bg-left, > .graph-task-bg-right,
+                    > .graph-transition-bg-left, > .graph-transition-bg-right {
+                        background-color: $workflow-page-background;
+                    }
+                }
+            }
+        }
     }
 
     &_dialog {
@@ -18,7 +39,7 @@
                     &_graph-content {
                         max-height: 80%;
                         overflow: auto;
-                        background-color: #e4e4e4;
+                        background-color: $workflow-dialog-background;
                     }
                 }
 
@@ -387,7 +408,7 @@
                         top: 10px;
                         margin-left: -11px;
                         content: '\f01e';
-                        font-family: "FontAwesome";
+                        font-family: "FontAwesome", sans-serif;
                         font-size: 14px;
                         text-align: center;
                         line-height: 20px;
@@ -403,7 +424,7 @@
 
             &_transition-to {
                 position: sticky;
-                background-color: #e4e4e4;
+                background-color: $workflow-dialog-background;
             }
         }
     }
@@ -420,7 +441,7 @@
                 bottom: 0;
                 width: 50%;
                 box-sizing: content-box;
-                background-color: #e4e4e4;
+                background-color: $workflow-dialog-background;
             }
 
             > .graph-task-bg-left, > .graph-transition-bg-left {
