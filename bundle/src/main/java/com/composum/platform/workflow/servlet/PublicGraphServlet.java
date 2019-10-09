@@ -118,8 +118,7 @@ public class PublicGraphServlet extends AbstractServiceServlet {
                     response.sendError(SC_INTERNAL_SERVER_ERROR);
                 }
             } else {
-                LOG.error("no task template found at '{}'", resource.getPath());
-                request.getRequestProgressTracker().log("not found '{0}' ({1},{2})",
+                request.getRequestProgressTracker().log("graph: not found ''{0}'' ({1},{2})",
                         resource.getPath(), resource.isValid(), resource.getResourceType());
                 response.sendError(SC_NOT_FOUND);
             }
