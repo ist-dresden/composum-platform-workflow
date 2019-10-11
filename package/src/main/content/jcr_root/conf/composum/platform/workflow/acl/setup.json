@@ -13,6 +13,24 @@
             }
           }
         ]
+      },
+      {
+        "principal": "composum-platform-workflow-service",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:read"
+          }
+        ]
+      },
+      {
+        "principal": "composum-platform-workflow-renderer",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:read"
+          }
+        ]
       }
     ]
   },
@@ -47,15 +65,6 @@
             "restrictions": {
               "rep:glob": ""
             }
-          }
-        ]
-      },
-      {
-        "principal": "composum-platform-workflow-service",
-        "acl": [
-          {
-            "allow": true,
-            "privileges": "jcr:read"
           }
         ]
       }
@@ -177,6 +186,29 @@
     "acl": [
       {
         "principal": "composum-platform-workflow-service",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:read"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "path": "/libs/composum/platform/workflow",
+    "acl": [
+      {
+        "principal": "composum-platform-workflow-service",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:read"
+          }
+        ]
+      },
+      {
+        "principal": "composum-platform-workflow-renderer",
         "acl": [
           {
             "allow": true,

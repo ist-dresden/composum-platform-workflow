@@ -9,10 +9,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.jcr.Session;
+import java.util.HashMap;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
+import static java.util.Collections.emptyMap;
 
 @SuppressWarnings("Duplicates")
 public class SetupHook implements InstallHook {
@@ -37,10 +38,11 @@ public class SetupHook implements InstallHook {
     protected void setupUsers(InstallContext ctx) throws PackageException {
         try {
             SetupUtil.setupGroupsAndUsers(ctx,
-                    singletonMap("system/composum/platform/composum-platform-services",
-                            emptyList()),
-                    singletonMap("system/composum/platform/composum-platform-workflow-service",
-                            singletonList("composum-platform-services")),
+                    emptyMap(),
+                    new HashMap<String, List<String>>() {{
+                        put("system/composum/platform/composum-platform-workflow-service", emptyList());
+                        put("system/composum/platform/composum-platform-workflow-renderer", emptyList());
+                    }},
                     null);
         } catch (RuntimeException e) {
             LOG.error("" + e, e);
