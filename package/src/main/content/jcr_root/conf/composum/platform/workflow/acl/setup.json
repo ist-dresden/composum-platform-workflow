@@ -217,5 +217,53 @@
         ]
       }
     ]
+  },
+  {
+    "path": "/libs/composum/platform/workflow",
+    "acl": [
+      {
+        "principal": "everyone",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:read",
+            "restrictions": {
+              "rep:glob": ""
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "path": "/libs/composum/platform/workflow/clientlibs",
+    "acl": [
+      {
+        "principal": "everyone",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:read",
+            "restrictions": {
+              "rep:glob": ""
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "path": "/libs/composum/platform/workflow/clientlibs/workflow",
+    "acl": [
+      {
+        "principal": "everyone",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:read"
+          }
+        ]
+      }
+    ]
   }
 ]
