@@ -46,7 +46,7 @@
                 core.getHtml(u.base + u._start + this.path,
                     _.bind(function (content) {
                         if (content) {
-                            core.showFormDialog(workflow.StartDialog, content, undefined, _.bind(function () {
+                            core.showFormDialog(workflow.StartDialog, content, {}, undefined, _.bind(function () {
                                 if (_.isFunction(this.onTaskAction)) {
                                     this.onTaskAction();
                                 }
@@ -66,7 +66,7 @@
                     core.getHtml(u.base + u._dialog + path,
                         _.bind(function (content) {
                             if (content) {
-                                core.showFormDialog(workflow.Dialog, content, undefined, _.bind(function () {
+                                core.showFormDialog(workflow.Dialog, content, {}, undefined, _.bind(function () {
                                     if (_.isFunction(this.onTaskAction)) {
                                         this.onTaskAction();
                                     }
@@ -98,7 +98,7 @@
                 if (this.$selected.length === 1) {
                     var path = this.$selected.data('path');
                     core.getHtml(path + '.cancel.condense.html', _.bind(function (content) {
-                        core.showFormDialog(workflow.CancelDialog, content, undefined, _.bind(function () {
+                        core.showFormDialog(workflow.CancelDialog, content, {}, undefined, _.bind(function () {
                             if (_.isFunction(this.onTaskAction)) {
                                 this.onTaskAction();
                             }
