@@ -2,10 +2,9 @@
  *
  *
  */
-(function (window) {
+(function () {
     'use strict';
-
-    window.workflow = window.workflow || {};
+    CPM.namespace('platform.workflow');
 
     (function (workflow, core) {
 
@@ -124,6 +123,6 @@
             }
         });
 
-    })(window.workflow, window.core);
+    })(CPM.platform.workflow, CPM.core);
 
-})(window);
+})();

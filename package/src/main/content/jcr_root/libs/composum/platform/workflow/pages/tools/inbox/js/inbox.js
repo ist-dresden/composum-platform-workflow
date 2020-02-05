@@ -2,10 +2,9 @@
  *
  *
  */
-(function (window) {
+(function () {
     'use strict';
-
-    window.workflow = window.workflow || {};
+    CPM.namespace('platform.workflow');
 
     (function (workflow, core) {
 
@@ -57,6 +56,6 @@
         workflow.inboxToolbar = core.getView('.composum-platform-workflow .composum-pages-tools_actions', workflow.PagesInboxToolbar);
         workflow.$inboxParent = workflow.inboxView.$el.parent();
 
-    })(window.workflow, window.core);
+    })(CPM.platform.workflow, CPM.core);
 
-})(window);
+})();
