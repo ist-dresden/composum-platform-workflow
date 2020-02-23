@@ -9,6 +9,7 @@ import com.composum.sling.core.servlet.AbstractServiceServlet;
 import com.composum.sling.core.servlet.ServletOperation;
 import com.composum.sling.core.servlet.ServletOperationSet;
 import com.composum.sling.core.util.I18N;
+import com.composum.sling.core.util.XSS;
 import com.google.gson.stream.JsonWriter;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.SlingHttpServletRequest;
@@ -157,7 +158,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
                     dispatcher.forward(request, response);
                 } else {
                     sendError(LOG::error, response, SC_INTERNAL_SERVER_ERROR,
-                            i18n(request, "can't forward request") + " '" + request.getRequestPathInfo().getSuffix() + "'");
+                            i18n(request, "can't forward request") + " '" + XSS.filter(request.getRequestPathInfo().getSuffix()) + "'");
                 }
             } else {
                 sendError(LOG::info, response, HttpServletResponse.SC_BAD_REQUEST,
@@ -180,7 +181,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 dispatcher.forward(request, response);
             } else {
                 sendError(LOG::error, response, SC_INTERNAL_SERVER_ERROR,
-                        i18n(request, "can't forward request") + " '" + request.getRequestPathInfo().getSuffix() + "'");
+                        i18n(request, "can't forward request") + " '" + XSS.filter(request.getRequestPathInfo().getSuffix()) + "'");
             }
         }
     }
@@ -199,7 +200,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 dispatcher.forward(request, response);
             } else {
                 sendError(LOG::error, response, SC_INTERNAL_SERVER_ERROR,
-                        i18n(request, "can't forward request") + " '" + request.getRequestPathInfo().getSuffix() + "'");
+                        i18n(request, "can't forward request") + " '" + XSS.filter(request.getRequestPathInfo().getSuffix()) + "'");
             }
         }
     }
@@ -219,7 +220,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 throws IOException {
             try {
                 BeanContext context = new BeanContext.Servlet(getServletContext(), bundleContext, request, response);
-                String taskTemplate = request.getParameter(PARAM_TEMPLATE);
+                String taskTemplate = XSS.filter(request.getParameter(PARAM_TEMPLATE));
                 if (StringUtils.isNotBlank(taskTemplate)) {
                     WorkflowTaskInstance taskInstance = workflowService.addTask(context, getRequestData(request),
                             null, taskTemplate, getParameterValues(request, PARAM_TARGET), getTaskData(request));
@@ -251,7 +252,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
                 throws IOException {
             try {
                 BeanContext context = new BeanContext.Servlet(getServletContext(), bundleContext, request, response);
-                String optionKey = request.getParameter(PARAM_OPTION);
+                String optionKey = XSS.filter(request.getParameter(PARAM_OPTION));
                 WorkflowTaskInstance taskInstance = workflowService.runTask(context, getRequestData(request),
                         resource.getPath(), optionKey, getTaskData(request));
                 if (taskInstance != null) {
@@ -308,7 +309,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
     }
 
     protected void addParameter(SlingHttpServletRequest request, String name, Map<String, Object> data) {
-        String value = request.getParameter(name);
+        String value = XSS.filter(request.getParameter(name));
         if (value != null) {
             data.put(name, value);
         }
@@ -316,7 +317,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
 
     protected List<String> getParameterValues(SlingHttpServletRequest request, String name) {
         List<String> result = new ArrayList<>();
-        String[] values = request.getParameterValues(name);
+        String[] values = XSS.filter(request.getParameterValues(name));
         if (values != null) {
             for (String value : values) {
                 if (StringUtils.isNotBlank(value)) {

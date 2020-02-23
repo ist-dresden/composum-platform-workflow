@@ -3,6 +3,7 @@ package com.composum.platform.workflow.model;
 import com.composum.platform.models.simple.SimpleModel;
 import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.platform.workflow.servlet.WorkflowServlet;
+import com.composum.sling.core.util.XSS;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.request.RequestPathInfo;
@@ -27,7 +28,7 @@ public class WorkflowServiceModel extends SimpleModel {
             if (request != null) {
                 // 1st: check request parameter
                 pathInfo = request.getRequestPathInfo();
-                String param = request.getParameter(PARAM_TENANT_ID);
+                String param = XSS.filter(request.getParameter(PARAM_TENANT_ID));
                 if (StringUtils.isNotBlank(param)) {
                     if ("*".equals(param)) {
                         return tenantId;
@@ -42,7 +43,7 @@ public class WorkflowServiceModel extends SimpleModel {
                 if (tenant == null) {
                     // 3rd: try to use a request suffix (resource path)
                     if (pathInfo != null) {
-                        String suffix = pathInfo.getSuffix();
+                        String suffix = XSS.filter(pathInfo.getSuffix());
                         if (StringUtils.isNotBlank(suffix)) {
                             resource = getResolver().getResource(suffix);
                             if (resource != null) {

@@ -3,6 +3,7 @@ package com.composum.platform.workflow.model;
 import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.SlingBean;
+import com.composum.sling.core.util.XSS;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
@@ -70,7 +71,7 @@ public class WorkflowTransition implements SlingBean {
                     transition = workflow.getTransition(initialResource,option);
                 }
                 if (transition == null) {
-                    String suffix = context.getRequest().getRequestPathInfo().getSuffix();
+                    String suffix = XSS.filter(context.getRequest().getRequestPathInfo().getSuffix());
                     if (suffix != null) {
                         if (suffix.startsWith("/")) {
                             suffix = suffix.substring(1);

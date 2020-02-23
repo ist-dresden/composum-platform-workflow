@@ -1,5 +1,6 @@
 package com.composum.platform.workflow.model;
 
+import com.composum.sling.core.util.XSS;
 import org.apache.sling.api.SlingHttpServletRequest;
 
 import java.util.ArrayList;
@@ -33,7 +34,7 @@ public class WorkflowInboxModel extends WorkflowServiceModel {
                 if (scope == null) {
                     try {
                         // a parameter 'scope' is declaring the session attribute to remember the scope
-                        scope = WorkflowTaskInstance.State.valueOf(getRequest().getParameter(PARAM_SCOPE));
+                        scope = WorkflowTaskInstance.State.valueOf(XSS.filter(getRequest().getParameter(PARAM_SCOPE)));
                         request.getSession(true).setAttribute(SA_INBOX_SCOPE, scope.name());
                     } catch (Exception ignore) {
                     }
