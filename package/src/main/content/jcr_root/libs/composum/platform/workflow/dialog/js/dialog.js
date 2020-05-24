@@ -123,7 +123,8 @@
                     this.$content.html($hint.length === 1 ? $hint[0].outerHTML : '');
                     this.$content.append('<input name="wf.template" type="hidden" value="' + path + '"/>');
                     if (form) {
-                        core.getHtml(path + '.start.html' + this.$el.data('path'), _.bind(function (content) {
+                        core.getHtml(core.encodePath(path) + '.start.html' + core.encodePath(this.$el.data('path')),
+                            _.bind(function (content) {
                             this.$content.append(content);
                             this.setupForm();
                         }, this));

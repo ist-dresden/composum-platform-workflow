@@ -42,7 +42,7 @@
                     event.preventDefault();
                 }
                 var u = workflow.const.url;
-                core.getHtml(u.base + u._start + this.path,
+                core.getHtml(u.base + u._start + core.encodePath(this.path),
                     _.bind(function (content) {
                         if (content) {
                             core.showFormDialog(workflow.StartDialog, content, {}, undefined, _.bind(function () {
@@ -62,7 +62,7 @@
                 if (this.$selected.length === 1) {
                     var u = workflow.const.url;
                     var path = this.$selected.data('path');
-                    core.getHtml(u.base + u._dialog + path,
+                    core.getHtml(u.base + u._dialog + core.encodePath(path),
                         _.bind(function (content) {
                             if (content) {
                                 core.showFormDialog(workflow.Dialog, content, {}, undefined, _.bind(function () {
@@ -82,7 +82,7 @@
                 }
                 if (this.$selected.length === 1) {
                     var path = this.$selected.data('path');
-                    core.getHtml(path + '.dialog.condense.html', _.bind(function (content) {
+                    core.getHtml(core.encodePath(path) + '.dialog.condense.html', _.bind(function (content) {
                             core.showLoadedDialog(core.components.LoadedDialog, content);
                         }, this)
                     );
@@ -96,7 +96,7 @@
                 }
                 if (this.$selected.length === 1) {
                     var path = this.$selected.data('path');
-                    core.getHtml(path + '.cancel.condense.html', _.bind(function (content) {
+                    core.getHtml(core.encodePath(path) + '.cancel.condense.html', _.bind(function (content) {
                         core.showFormDialog(workflow.CancelDialog, content, {}, undefined, _.bind(function () {
                             if (_.isFunction(this.onTaskAction)) {
                                 this.onTaskAction();
