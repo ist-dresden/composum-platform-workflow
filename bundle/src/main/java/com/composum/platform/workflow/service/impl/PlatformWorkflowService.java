@@ -820,6 +820,7 @@ public class PlatformWorkflowService implements WorkflowService {
         Iterator<Resource> finished = resolver.findResources(query, Query.XPATH);
         while (finished.hasNext()) {
             Resource taskResource = finished.next();
+            LOG.debug("Loading workflow {}", taskResource.getPath());
             Workflow workflow = loadWorkflow(context, taskResource.getPath());
             if (workflow == null || workflow.isHollow()) {
                 LOG.error("can't load workflow of task '{}'", taskResource.getPath());
