@@ -69,6 +69,10 @@
             <groupId>com.composum.platform</groupId>
             <artifactId>composum-platform-commons-bundle</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-testing-testutil</artifactId>
+        </dependency>
 
         <!-- Composum Nodes (Core) -->
         <dependency>
@@ -85,6 +89,14 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-email</artifactId>
         </dependency-->
+        <dependency>
+            <groupId>org.simplejavamail</groupId>
+            <artifactId>simple-java-mail</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.simplejavamail</groupId>
+            <artifactId>batch-module</artifactId>
+        </dependency>
 
         <!-- Apache Sling -->
         <dependency>
