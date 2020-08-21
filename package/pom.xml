@@ -118,67 +118,23 @@
                             <includes>
                                 <include>.*/composum-platform-workflow-bundle.*\.jar</include>
                                 <include>.*/org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended-workflow.config</include>
-                                <include>.*/simple-java-mail.*\.jar</include>
-                                <include>.*/core-module.*\.jar</include>
+                                <include>.*/commons-email.*\.jar</include>
                             </includes>
                         </filter>
                     </filters>
 
                     <embeddeds>
+
                         <embedded>
                             <groupId>${project.groupId}</groupId>
                             <artifactId>composum-platform-workflow-bundle</artifactId>
                             <target>/libs/composum/platform/install</target>
-                            <filter>true</filter>
                         </embedded>
 
                         <embedded>
-                            <groupId>org.simplejavamail</groupId>
-                            <artifactId>simple-java-mail</artifactId>
+                            <groupId>org.apache.commons</groupId>
+                            <artifactId>commons-email</artifactId>
                             <target>/libs/composum/platform/install</target>
-                            <filter>true</filter>
-                        </embedded>
-
-                        <embedded>
-                            <groupId>org.simplejavamail</groupId>
-                            <artifactId>core-module</artifactId>
-                            <target>/libs/composum/platform/install</target>
-                            <filter>true</filter>
-                        </embedded>
-
-                        <embedded>
-                            <groupId>com.sun.mail</groupId>
-                            <artifactId>jakarta.mail</artifactId>
-                            <target>/libs/composum/platform/install</target>
-                            <filter>true</filter>
-                        </embedded>
-
-                        <embedded>
-                            <groupId>com.sun.activation</groupId>
-                            <artifactId>jakarta.activation</artifactId>
-                            <target>/libs/composum/platform/install</target>
-                            <filter>true</filter>
-                        </embedded>
-
-                        <embedded>
-                            <groupId>com.github.bbottema</groupId>
-                            <artifactId>emailaddress-rfc2822</artifactId>
-                            <target>/libs/composum/platform/install</target>
-                            <filter>true</filter>
-                        </embedded>
-
-                        <embedded>
-                            <groupId>com.github.bbottema</groupId>
-                            <artifactId>jetbrains-runtime-annotations</artifactId>
-                            <target>/libs/composum/platform/install</target>
-                            <filter>true</filter>
-                        </embedded>
-
-                        <embedded>
-                            <groupId>com.github.bbottema</groupId>
-                            <artifactId>batch-module</artifactId>
-                            <target>/libs/composum/platform/install</target>
-                            <filter>true</filter>
                         </embedded>
 
                     </embeddeds>
@@ -228,26 +184,10 @@
         <!--dependency>
             <groupId>com.google.api-client</groupId>
             <artifactId>google-api-client</artifactId>
-        </dependency>
+        </dependency-->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-email</artifactId>
-        </dependency-->
-        <dependency>
-            <groupId>org.simplejavamail</groupId>
-            <artifactId>simple-java-mail</artifactId>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.simplejavamail/batch-module -->
-        <dependency>
-            <groupId>org.simplejavamail</groupId>
-            <artifactId>batch-module</artifactId>
-        </dependency>
-
-        <!-- https://mvnrepository.com/artifact/com.github.bbottema/jetbrains-runtime-annotations -->
-        <dependency>
-            <groupId>com.github.bbottema</groupId>
-            <artifactId>jetbrains-runtime-annotations</artifactId>
-            <version>1.0.0</version>
         </dependency>
 
     </dependencies>

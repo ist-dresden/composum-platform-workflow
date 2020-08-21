@@ -71,16 +71,6 @@
                 <artifactId>commons-email</artifactId>
                 <version>1.5</version>
             </dependency>
-            <dependency>
-                <groupId>org.simplejavamail</groupId>
-                <artifactId>simple-java-mail</artifactId>
-                <version>6.4.3</version>
-            </dependency>
-            <dependency>
-                <groupId>org.simplejavamail</groupId>
-                <artifactId>batch-module</artifactId>
-                <version>6.4.3</version>
-            </dependency>
 
         </dependencies>
     </dependencyManagement>
