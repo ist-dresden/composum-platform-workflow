@@ -56,6 +56,9 @@
                             <root>/conf/composum/platform/workflow/test</root>
                         </filter>
                         <filter>
+                            <root>/var/composum/platform/security/credentials/composum/platform/workflow/test</root>
+                        </filter>
+                        <filter>
                             <root>/apps/composum/platform/workflow/test</root>
                         </filter>
                     </filters>

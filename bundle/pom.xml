@@ -192,5 +192,13 @@
             <artifactId>junit</artifactId>
         </dependency>
 
+        <!-- Additional test dependencies -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient-osgi</artifactId>
+            <!-- Needed to instantiate CredentialService -->
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 </project>

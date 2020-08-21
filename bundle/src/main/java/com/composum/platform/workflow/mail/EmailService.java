@@ -2,6 +2,7 @@ package com.composum.platform.workflow.mail;
 
 import org.apache.commons.mail.Email;
 import org.apache.commons.mail.EmailException;
+import org.apache.sling.api.resource.Resource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -17,6 +18,7 @@ public interface EmailService {
     boolean isValid(@Nullable String emailAdress);
 
     // FIXME(hps,21.08.20) temporary
-    void sendMail(@Nonnull Email email) throws EmailException;
+    @Nullable
+    String sendMail(@Nonnull Email email, @Nonnull Resource serverConfig) throws EmailException;
 
 }
