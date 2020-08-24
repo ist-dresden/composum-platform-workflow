@@ -73,10 +73,16 @@
     </build>
     <dependencies>
 
-        <!-- Composum Core -->
+        <!-- Composum -->
         <dependency>
             <groupId>com.composum.sling.core</groupId>
             <artifactId>composum-sling-core-commons</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-workflow-bundle</artifactId>
+            <version>${project.version}</version>
         </dependency>
 
         <!-- Taglib support -->

@@ -36,7 +36,7 @@ public class EmailServiceImpl implements EmailService {
     /**
      * Kind of server: SMTP, SMTPS, STARTTLS.
      */
-    public static final String PROP_SERVER_TYPE = "type";
+    public static final String PROP_SERVER_TYPE = "connectionType";
     /**
      * Value {@value #VALUE_SMTP} for {@link #PROP_SERVER_TYPE}.
      */
