@@ -29,6 +29,10 @@ import javax.mail.Authenticator;
 })
 public class EmailServiceImpl implements EmailService {
 
+    /** Path for server configurations, mail templates, etc. This is not enforced, just a suggestion. */
+    @SuppressWarnings("unused")
+    public static final String PATH_CONFIG = "/var/composum/platform/mail";
+
     /**
      * Whether the server is enabled.
      */

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jcr:root xmlns:jcr="http://www.jcp.org/jcr/1.0"
+          xmlns:nt="http://www.jcp.org/jcr/nt/1.0"
+          xmlns:sling="http://sling.apache.org/jcr/sling/1.0"
+          jcr:primaryType="nt:unstructured"
+          jcr:mixinTypes="[vlt:FullCoverage]"
+          sling:resourceType="composum/platform/workflow/components/mail/mailserverconfig"
+          jcr:description="Data for email relay server for testing (hps slingtest) at https://www.sendgrid.com/."
+          jcr:title="email test relay"
+          connectionType="STARTTLS"
+          credentialId="/composum/platform/workflow/test/mail/sendgridcredentials"
+          enabled="{Boolean}true"
+          host="smtp.sendgrid.net"
+          port="587">
+    <!-- This only works with some real credentials, which we cannot checkin for obvious reasons. -->
+</jcr:root>
