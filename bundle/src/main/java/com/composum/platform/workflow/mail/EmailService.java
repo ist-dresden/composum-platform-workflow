@@ -21,4 +21,7 @@ public interface EmailService {
     @Nullable
     String sendMail(@Nonnull Email email, @Nonnull Resource serverConfig) throws EmailException;
 
+    /** Returns true if the email service is enabled. */
+    boolean isEnabled();
+
 }

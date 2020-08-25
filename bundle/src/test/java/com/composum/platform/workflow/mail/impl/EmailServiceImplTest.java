@@ -42,6 +42,9 @@ public class EmailServiceImplTest {
     @Mock
     protected CredentialService credentialService;
 
+    @Mock
+    protected EmailServiceImpl.Config config;
+
     @InjectMocks
     protected EmailServiceImpl service = new EmailServiceImpl();
 
@@ -74,6 +77,9 @@ public class EmailServiceImplTest {
                         "credentialId", "/some/thing"
                 ))
         );
+        when(config.enabled()).thenReturn(true);
+        when(config.connectionTimeout()).thenReturn(1000);
+        when(config.socketTimeout()).thenReturn(1000);
     }
 
     /**
@@ -96,8 +102,7 @@ public class EmailServiceImplTest {
     /**
      * Caution: this test takes a looong time - it
      */
-    @Test(expected = EmailException.class, timeout = 65000)
-    @Ignore
+    @Test(expected = EmailException.class, timeout = 2000)
     public void noconnection() throws EmailException {
         Email email = new SimpleEmail();
         email.setFrom("something@example.net");
