@@ -6,6 +6,7 @@ import org.apache.sling.api.resource.Resource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.concurrent.Future;
 
 /**
  * Allows sending emails, adress verification etc.
@@ -19,7 +20,11 @@ public interface EmailService {
 
     // FIXME(hps,21.08.20) temporary
     @Nullable
-    String sendMail(@Nonnull Email email, @Nonnull Resource serverConfig) throws EmailException;
+    String sendMailImmediately(@Nonnull Email email, @Nonnull Resource serverConfig) throws EmailException;
+
+    // FIXME(hps,21.08.20) temporary
+    @Nullable
+    Future<String> sendMail(@Nonnull Email email, @Nonnull Resource serverConfig) throws EmailException;
 
     /** Returns true if the email service is enabled. */
     boolean isEnabled();

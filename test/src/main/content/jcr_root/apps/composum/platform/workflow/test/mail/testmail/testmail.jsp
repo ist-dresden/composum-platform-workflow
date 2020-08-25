@@ -16,6 +16,6 @@ Mailing now.
      email.setSubject("TestMail too");
      email.setMsg("This is a test impl ... :-)");
      email.addTo("hps@ist-software.com");
-     String result = service.sendMail(email, serverConfigResource);
+     String result = service.sendMailImmediately(email, serverConfigResource);
 %>
 Sent - result <%= result%>

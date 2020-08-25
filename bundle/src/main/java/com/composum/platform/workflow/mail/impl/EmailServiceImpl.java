@@ -1,15 +1,16 @@
 package com.composum.platform.workflow.mail.impl;
 
 import com.composum.platform.commons.credentials.CredentialService;
+import com.composum.platform.workflow.mail.EmailServerConfigModel;
 import com.composum.platform.workflow.mail.EmailService;
+import com.composum.sling.core.BeanContext;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.mail.Email;
 import org.apache.commons.mail.EmailException;
 import org.apache.commons.mail.SimpleEmail;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ValueMap;
-import org.jetbrains.annotations.NotNull;
+import org.apache.sling.commons.threads.ThreadPool;
+import org.apache.sling.commons.threads.ThreadPoolManager;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.*;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
@@ -22,6 +23,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
+import java.util.concurrent.Future;
+
+import static com.composum.platform.workflow.mail.EmailServerConfigModel.*;
 
 /**
  * Implementation of {@link EmailService} using Simple Java Mail.
@@ -39,44 +43,22 @@ public class EmailServiceImpl implements EmailService {
     public static final String PATH_CONFIG = "/var/composum/platform/mail";
 
     /**
-     * Whether the server is enabled.
+     * Name of the threadpool, and thus prefix for the thread names.
      */
-    public static final String PROP_SERVER_ENABLED = "enabled";
-    /**
-     * Kind of server: SMTP, SMTPS, STARTTLS.
-     */
-    public static final String PROP_SERVER_TYPE = "connectionType";
-    /**
-     * Value {@value #VALUE_SMTP} for {@link #PROP_SERVER_TYPE}.
-     */
-    public static final String VALUE_SMTP = "SMTP";
-    /**
-     * Value {@value #VALUE_SMTPS} for {@link #PROP_SERVER_TYPE}.
-     */
-    public static final String VALUE_SMTPS = "SMTPS";
-    /**
-     * Value {@value #VALUE_STARTTLS} for {@link #PROP_SERVER_TYPE}.
-     */
-    public static final String VALUE_STARTTLS = "STARTTLS";
-    /**
-     * SMTP server / relay hostname.
-     */
-    public static final String PROP_SERVER_HOST = "host";
-    /**
-     * SMTP server / relay port.
-     */
-    public static final String PROP_SERVER_PORT = "port";
-    /**
-     * Optional credential ID for the SMTP server / relay used with the {@link CredentialService#getMailAuthenticator(String, ResourceResolver)}.
-     */
-    public static final String PROP_CREDENTIALID = "credentialId";
+    public static final String THREADPOOL_NAME = "EmailSrv";
 
     private static final Logger LOG = LoggerFactory.getLogger(EmailServiceImpl.class);
 
     @Reference
     protected CredentialService credentialService;
 
+    @Reference
+    protected ThreadPoolManager threadPoolManager;
+
     protected volatile Config config;
+
+    protected volatile ThreadPool threadPool;
+
 
     @Override
     public boolean isValid(@Nullable String emailAdress) {
@@ -90,18 +72,35 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
-    public String sendMail(@Nonnull Email email, @Nonnull Resource serverConfig) throws EmailException {
+    public String sendMailImmediately(@Nonnull Email email, @Nonnull Resource serverConfigResource) throws EmailException {
         verifyEnabled();
-        try {
-            initFromServerConfig(email, serverConfig);
-        } catch (RepositoryException e) { // acl failure
-            throw new EmailException(e);
-        }
+        prepareEmail(email, serverConfigResource);
         String id = email.send();
         return id;
     }
 
-    protected void initFromServerConfig(@Nonnull Email email, @Nonnull Resource serverConfig) throws RepositoryException, EmailException {
+    protected void prepareEmail(@Nonnull Email email, @Nonnull Resource serverConfigResource) throws EmailException {
+        EmailServerConfigModel serverConfig = new EmailServerConfigModel();
+        serverConfig.initialize(new BeanContext.Service(serverConfigResource.getResourceResolver()), serverConfigResource);
+        try {
+            Authenticator authenticator =
+                    StringUtils.isNotBlank(serverConfig.getCredentialId()) ?
+                            credentialService.getMailAuthenticator(serverConfig.getCredentialId(), serverConfigResource.getResourceResolver()) : null;
+            initFromServerConfig(email, serverConfig, authenticator);
+        } catch (RepositoryException e) { // acl failure
+            throw new EmailException(e);
+        }
+    }
+
+    @Nullable
+    @Override
+    public Future<String> sendMail(@Nonnull Email email, @Nonnull Resource serverConfig) throws EmailException {
+        verifyEnabled();
+        prepareEmail(email, serverConfig);
+        return threadPool.submit(email::send);
+    }
+
+    protected void initFromServerConfig(@Nonnull Email email, @Nonnull EmailServerConfigModel serverConfig, Authenticator authenticator) throws EmailException {
         verifyEnabled();
         if (serverConfig == null) {
             throw new IllegalArgumentException("No email server configuration given");
@@ -112,27 +111,22 @@ public class EmailServiceImpl implements EmailService {
         if (config.socketTimeout() != 0) {
             email.setSocketTimeout(config.socketTimeout());
         }
-        @NotNull ValueMap vm = serverConfig.getValueMap();
-        Boolean enabled = vm.get(PROP_SERVER_ENABLED, Boolean.class);
-        if (!Boolean.TRUE.equals(enabled)) {
+        if (!serverConfig.getEnabled()) {
             LOG.warn("Trying to send email with disabled server {}", serverConfig.getPath());
-            ;
             throw new EmailException("Email-server not enabled.");
         }
-        email.setHostName(vm.get(PROP_SERVER_HOST, String.class));
-        String type = vm.get(PROP_SERVER_TYPE, String.class);
-        if (VALUE_SMTP.equals(type)) {
-            email.setSmtpPort(vm.get(PROP_SERVER_PORT, Integer.class));
-        } else if (VALUE_STARTTLS.equals(type)) {
-            email.setSmtpPort(vm.get(PROP_SERVER_PORT, Integer.class));
+        email.setHostName(serverConfig.getHost());
+        String connectionType = serverConfig.getConnectionType();
+        if (VALUE_SMTP.equals(connectionType)) {
+            email.setSmtpPort(serverConfig.getPort());
+        } else if (VALUE_STARTTLS.equals(connectionType)) {
+            email.setSmtpPort(serverConfig.getPort());
             email.setStartTLSRequired(true);
-        } else if (VALUE_SMTPS.equals(type)) {
-            email.setSslSmtpPort(vm.get(PROP_SERVER_PORT, String.class));
+        } else if (VALUE_SMTPS.equals(connectionType)) {
+            email.setSslSmtpPort(String.valueOf(serverConfig.getPort()));
             email.setSSLOnConnect(true);
         }
-        String credentialId = vm.get(PROP_CREDENTIALID, String.class);
-        if (StringUtils.isNotBlank(credentialId)) {
-            Authenticator authenticator = credentialService.getMailAuthenticator(credentialId, serverConfig.getResourceResolver());
+        if (authenticator != null) {
             email.setAuthenticator(authenticator);
         }
     }
@@ -151,9 +145,29 @@ public class EmailServiceImpl implements EmailService {
 
     @Activate
     @Modified
+    protected void modifyConfig(Config theConfig) {
+        LOG.info("activated");
+        this.config = theConfig;
+        if (isEnabled()) {
+            this.threadPool = threadPoolManager.get(THREADPOOL_NAME);
+        } else {
+            releaseThreadpool();
+        }
+    }
+
     @Deactivate
-    protected void modifyConfig(Config config) {
-        this.config = config;
+    protected void deactivate() {
+        LOG.info("deactivated");
+        this.config = null;
+        releaseThreadpool();
+    }
+
+    protected void releaseThreadpool() {
+        ThreadPool oldThreadPool = this.threadPool;
+        this.threadPool = null;
+        if (oldThreadPool != null) {
+            threadPoolManager.release(oldThreadPool);
+        }
     }
 
     @ObjectClassDefinition(

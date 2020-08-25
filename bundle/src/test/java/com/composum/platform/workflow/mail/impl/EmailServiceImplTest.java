@@ -7,8 +7,9 @@ import org.apache.commons.mail.EmailException;
 import org.apache.commons.mail.SimpleEmail;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
+import org.apache.sling.commons.threads.ThreadPool;
+import org.apache.sling.commons.threads.ThreadPoolManager;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.InjectMocks;
@@ -19,6 +20,10 @@ import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
 import javax.mail.PasswordAuthentication;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,6 +46,12 @@ public class EmailServiceImplTest {
 
     @Mock
     protected CredentialService credentialService;
+
+    @Mock
+    protected ThreadPoolManager threadPoolManager;
+
+    @Mock
+    protected ThreadPool threadPool;
 
     @Mock
     protected EmailServiceImpl.Config config;
@@ -80,6 +91,19 @@ public class EmailServiceImplTest {
         when(config.enabled()).thenReturn(true);
         when(config.connectionTimeout()).thenReturn(1000);
         when(config.socketTimeout()).thenReturn(1000);
+        when(threadPoolManager.get(anyString())).thenReturn(threadPool);
+        when(threadPool.submit(any(Callable.class))).thenAnswer(
+                (invocation) -> {
+                    CompletableFuture future = new CompletableFuture();
+                    try {
+                        Callable callable = invocation.getArgument(0, Callable.class);
+                        future.complete(callable.call());
+                    } catch (Throwable t) {
+                        future.completeExceptionally(t);
+                    }
+                    return future;
+                }
+        );
     }
 
     /**
@@ -96,22 +120,35 @@ public class EmailServiceImplTest {
         email.setSubject("TestMail");
         email.setMsg("This is a test impl ... :-)");
         email.addTo("broken_address");
-        service.sendMail(email, serverConfigResource);
+        service.sendMailImmediately(email, serverConfigResource);
     }
 
     /**
      * Caution: this test takes a looong time - it
      */
     @Test(expected = EmailException.class, timeout = 2000)
-    public void noconnection() throws EmailException {
+    public void noConnection() throws EmailException {
         Email email = new SimpleEmail();
         email.setFrom("something@example.net");
         email.setSubject("TestMail");
         email.setMsg("This is a test impl ... :-)");
         email.addTo("somethingelse@example.net");
-        service.sendMail(email, invalidServerConfigResource);
+        service.sendMailImmediately(email, invalidServerConfigResource);
     }
 
+    /**
+     * Caution: this test takes a looong time - it
+     */
+    @Test(expected = ExecutionException.class, timeout = 2000)
+    public void noConnectionDelayed() throws EmailException, ExecutionException, InterruptedException {
+        Email email = new SimpleEmail();
+        email.setFrom("something@example.net");
+        email.setSubject("TestMail");
+        email.setMsg("This is a test impl ... :-)");
+        email.addTo("somethingelse@example.net");
+        Future<String> future = service.sendMail(email, invalidServerConfigResource);
+        future.get();
+    }
 
     @Test
     public void isValid() {
