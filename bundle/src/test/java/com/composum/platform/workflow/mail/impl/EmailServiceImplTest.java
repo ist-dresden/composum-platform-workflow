@@ -9,6 +9,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.apache.sling.commons.threads.ThreadPool;
 import org.apache.sling.commons.threads.ThreadPoolManager;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -104,6 +105,12 @@ public class EmailServiceImplTest {
                     return future;
                 }
         );
+        service.activate(config);
+    }
+
+    @After
+    public void tearDown() {
+        service.deactivate();
     }
 
     /**

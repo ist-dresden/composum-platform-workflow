@@ -98,6 +98,12 @@
             <artifactId>jstl</artifactId>
         </dependency>
 
+        <!-- EMail... -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-email</artifactId>
+        </dependency>
+
     </dependencies>
     <profiles>
 

@@ -1,6 +1,7 @@
 package com.composum.platform.workflow.mail.impl;
 
 import com.composum.platform.commons.credentials.CredentialService;
+import com.composum.platform.commons.util.SlingThreadPoolExecutorService;
 import com.composum.platform.workflow.mail.EmailServerConfigModel;
 import com.composum.platform.workflow.mail.EmailService;
 import com.composum.sling.core.BeanContext;
@@ -9,7 +10,6 @@ import org.apache.commons.mail.Email;
 import org.apache.commons.mail.EmailException;
 import org.apache.commons.mail.SimpleEmail;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.commons.threads.ThreadPool;
 import org.apache.sling.commons.threads.ThreadPoolManager;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.*;
@@ -23,6 +23,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 import static com.composum.platform.workflow.mail.EmailServerConfigModel.*;
@@ -55,10 +56,9 @@ public class EmailServiceImpl implements EmailService {
     @Reference
     protected ThreadPoolManager threadPoolManager;
 
+    protected volatile ExecutorService executorService;
+
     protected volatile Config config;
-
-    protected volatile ThreadPool threadPool;
-
 
     @Override
     public boolean isValid(@Nullable String emailAdress) {
@@ -97,7 +97,7 @@ public class EmailServiceImpl implements EmailService {
     public Future<String> sendMail(@Nonnull Email email, @Nonnull Resource serverConfig) throws EmailException {
         verifyEnabled();
         prepareEmail(email, serverConfig);
-        return threadPool.submit(email::send);
+        return executorService.submit(email::send);
     }
 
     protected void initFromServerConfig(@Nonnull Email email, @Nonnull EmailServerConfigModel serverConfig, Authenticator authenticator) throws EmailException {
@@ -145,13 +145,15 @@ public class EmailServiceImpl implements EmailService {
 
     @Activate
     @Modified
-    protected void modifyConfig(Config theConfig) {
+    protected void activate(Config theConfig) {
         LOG.info("activated");
         this.config = theConfig;
         if (isEnabled()) {
-            this.threadPool = threadPoolManager.get(THREADPOOL_NAME);
+            if (executorService == null) {
+                this.executorService = new SlingThreadPoolExecutorService(threadPoolManager, THREADPOOL_NAME);
+            }
         } else {
-            releaseThreadpool();
+            shutdownExecutorService();
         }
     }
 
@@ -159,14 +161,14 @@ public class EmailServiceImpl implements EmailService {
     protected void deactivate() {
         LOG.info("deactivated");
         this.config = null;
-        releaseThreadpool();
+        shutdownExecutorService();
     }
 
-    protected void releaseThreadpool() {
-        ThreadPool oldThreadPool = this.threadPool;
-        this.threadPool = null;
-        if (oldThreadPool != null) {
-            threadPoolManager.release(oldThreadPool);
+    protected void shutdownExecutorService() {
+        ExecutorService oldExecutorService = this.executorService;
+        this.executorService = null;
+        if (oldExecutorService != null) {
+            oldExecutorService.shutdown();
         }
     }
 
