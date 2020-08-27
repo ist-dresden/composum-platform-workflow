@@ -1,10 +1,13 @@
 package com.composum.platform.workflow.mail.impl;
 
+import com.composum.platform.commons.content.service.PlaceholderService;
+import com.composum.platform.commons.content.service.PlaceholderServiceImpl;
 import com.composum.platform.commons.credentials.CredentialService;
+import com.composum.platform.workflow.mail.EmailBuilder;
+import com.composum.platform.workflow.mail.EmailSendingException;
+import com.composum.sling.core.BeanContext;
 import com.composum.sling.platform.testing.testutil.ErrorCollectorAlwaysPrintingFailures;
-import org.apache.commons.mail.Email;
-import org.apache.commons.mail.EmailException;
-import org.apache.commons.mail.SimpleEmail;
+import org.apache.commons.lang3.concurrent.ConcurrentUtils;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.apache.sling.commons.threads.ThreadPool;
@@ -16,6 +19,7 @@ import org.junit.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
 
 import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
@@ -24,7 +28,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -57,8 +61,13 @@ public class EmailServiceImplTest {
     @Mock
     protected EmailServiceImpl.Config config;
 
+    @Spy
+    protected PlaceholderService placeholderService = new PlaceholderServiceImpl();
+
     @InjectMocks
     protected EmailServiceImpl service = new EmailServiceImpl();
+
+    protected BeanContext beanContext = new BeanContext.Map();
 
     @Before
     public void setUp() throws RepositoryException {
@@ -120,41 +129,28 @@ public class EmailServiceImplTest {
         return "somepassword";
     }
 
-    @Test(expected = EmailException.class)
-    public void sendInvalidMail() throws EmailException {
-        Email email = new SimpleEmail();
+    @Test(expected = EmailSendingException.class, timeout = 100)
+    public void sendInvalidMail() throws EmailSendingException {
+        EmailBuilder email = new EmailBuilder(beanContext, null);
         email.setFrom("wrong");
         email.setSubject("TestMail");
-        email.setMsg("This is a test impl ... :-)");
-        email.addTo("broken_address");
-        service.sendMailImmediately(email, serverConfigResource);
+        email.setBody("This is a test impl ... :-)");
+        email.setTo("broken_address");
+        service.sendMail(email, serverConfigResource);
     }
 
-    /**
-     * Caution: this test takes a looong time - it
-     */
-    @Test(expected = EmailException.class, timeout = 2000)
-    public void noConnection() throws EmailException {
-        Email email = new SimpleEmail();
+    @Test(expected = EmailSendingException.class, timeout = 2000)
+    public void noConnection() throws Throwable {
+        EmailBuilder email = new EmailBuilder(beanContext, null);
         email.setFrom("something@example.net");
         email.setSubject("TestMail");
-        email.setMsg("This is a test impl ... :-)");
-        email.addTo("somethingelse@example.net");
-        service.sendMailImmediately(email, invalidServerConfigResource);
-    }
-
-    /**
-     * Caution: this test takes a looong time - it
-     */
-    @Test(expected = ExecutionException.class, timeout = 2000)
-    public void noConnectionDelayed() throws EmailException, ExecutionException, InterruptedException {
-        Email email = new SimpleEmail();
-        email.setFrom("something@example.net");
-        email.setSubject("TestMail");
-        email.setMsg("This is a test impl ... :-)");
-        email.addTo("somethingelse@example.net");
-        Future<String> future = service.sendMail(email, invalidServerConfigResource);
-        future.get();
+        email.setBody("This is a test impl ... :-)");
+        email.setTo("somethingelse@example.net");
+        try {
+            service.sendMail(email, invalidServerConfigResource).get(3000, TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            throw e.getCause();
+        }
     }
 
     @Test

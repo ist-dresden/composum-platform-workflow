@@ -1,7 +1,10 @@
 package com.composum.platform.workflow.mail.impl;
 
+import com.composum.platform.commons.content.service.PlaceholderService;
 import com.composum.platform.commons.credentials.CredentialService;
 import com.composum.platform.commons.util.SlingThreadPoolExecutorService;
+import com.composum.platform.workflow.mail.EmailBuilder;
+import com.composum.platform.workflow.mail.EmailSendingException;
 import com.composum.platform.workflow.mail.EmailServerConfigModel;
 import com.composum.platform.workflow.mail.EmailService;
 import com.composum.sling.core.BeanContext;
@@ -56,6 +59,9 @@ public class EmailServiceImpl implements EmailService {
     @Reference
     protected ThreadPoolManager threadPoolManager;
 
+    @Reference
+    protected PlaceholderService placeholderService;
+
     protected volatile ExecutorService executorService;
 
     protected volatile Config config;
@@ -71,36 +77,38 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
-    @Override
-    public String sendMailImmediately(@Nonnull Email email, @Nonnull Resource serverConfigResource) throws EmailException {
-        verifyEnabled();
-        prepareEmail(email, serverConfigResource);
-        String id = email.send();
-        return id;
-    }
-
-    protected void prepareEmail(@Nonnull Email email, @Nonnull Resource serverConfigResource) throws EmailException {
+    protected Email prepareEmail(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfigResource) throws EmailSendingException {
         EmailServerConfigModel serverConfig = new EmailServerConfigModel();
         serverConfig.initialize(new BeanContext.Service(serverConfigResource.getResourceResolver()), serverConfigResource);
+        Email email = emailBuilder.buildEmail(placeholderService);
         try {
             Authenticator authenticator =
                     StringUtils.isNotBlank(serverConfig.getCredentialId()) ?
                             credentialService.getMailAuthenticator(serverConfig.getCredentialId(), serverConfigResource.getResourceResolver()) : null;
             initFromServerConfig(email, serverConfig, authenticator);
         } catch (RepositoryException e) { // acl failure
-            throw new EmailException(e);
+            throw new EmailSendingException(e);
+        }
+        return email;
+    }
+
+    @Nonnull
+    @Override
+    public Future<String> sendMail(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
+        verifyEnabled();
+        Email email = prepareEmail(emailBuilder, serverConfig);
+        return executorService.submit(() -> sendEmail(email));
+    }
+
+    protected String sendEmail(Email email) throws EmailSendingException {
+        try {
+            return email.send();
+        } catch (EmailException e) {
+            throw new EmailSendingException(e);
         }
     }
 
-    @Nullable
-    @Override
-    public Future<String> sendMail(@Nonnull Email email, @Nonnull Resource serverConfig) throws EmailException {
-        verifyEnabled();
-        prepareEmail(email, serverConfig);
-        return executorService.submit(email::send);
-    }
-
-    protected void initFromServerConfig(@Nonnull Email email, @Nonnull EmailServerConfigModel serverConfig, Authenticator authenticator) throws EmailException {
+    protected void initFromServerConfig(@Nonnull Email email, @Nonnull EmailServerConfigModel serverConfig, Authenticator authenticator) throws EmailSendingException {
         verifyEnabled();
         if (serverConfig == null) {
             throw new IllegalArgumentException("No email server configuration given");
@@ -113,7 +121,7 @@ public class EmailServiceImpl implements EmailService {
         }
         if (!serverConfig.getEnabled()) {
             LOG.warn("Trying to send email with disabled server {}", serverConfig.getPath());
-            throw new EmailException("Email-server not enabled.");
+            throw new EmailSendingException("Email-server not enabled.");
         }
         email.setHostName(serverConfig.getHost());
         String connectionType = serverConfig.getConnectionType();
@@ -131,9 +139,9 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
-    protected void verifyEnabled() throws EmailException {
+    protected void verifyEnabled() throws EmailSendingException {
         if (!isEnabled()) {
-            throw new EmailException("Email service is not enabled.");
+            throw new EmailSendingException("Email service is not enabled.");
         }
     }
 

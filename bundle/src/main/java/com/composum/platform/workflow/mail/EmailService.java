@@ -7,6 +7,7 @@ import org.apache.sling.api.resource.Resource;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Allows sending emails, adress verification etc.
@@ -14,19 +15,23 @@ import java.util.concurrent.Future;
 public interface EmailService {
 
     /**
+     * Returns true if the email service is enabled.
+     */
+    boolean isEnabled();
+
+    /**
      * Checks whether this is a valid email address to send to.
      */
     boolean isValid(@Nullable String emailAdress);
 
-    // FIXME(hps,21.08.20) temporary
-    @Nullable
-    String sendMailImmediately(@Nonnull Email email, @Nonnull Resource serverConfig) throws EmailException;
-
-    // FIXME(hps,21.08.20) temporary
-    @Nullable
-    Future<String> sendMail(@Nonnull Email email, @Nonnull Resource serverConfig) throws EmailException;
-
-    /** Returns true if the email service is enabled. */
-    boolean isEnabled();
+    /**
+     * Sends an email asynchronously. If you need it done synchronously, just use {@link Future#get(long, TimeUnit)} on the result.
+     *
+     * @param email        the content of the email
+     * @param serverConfig the resource containing the configuration of the email server
+     * @return a future with the message-ID
+     */
+    @Nonnull
+    Future<String> sendMail(@Nonnull EmailBuilder email, @Nonnull Resource serverConfig) throws EmailSendingException;
 
 }
