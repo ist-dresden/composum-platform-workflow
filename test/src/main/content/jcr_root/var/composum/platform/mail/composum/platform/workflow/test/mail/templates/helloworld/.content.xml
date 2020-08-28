@@ -3,7 +3,7 @@
         xmlns:nt="http://www.jcp.org/jcr/nt/1.0"
         xmlns:sling="http://sling.apache.org/jcr/sling/1.0"
         jcr:primaryType="nt:unstructured"
-        jcr:mixinTypes="[vlt:FullCoverage]"
+        jcr:mixinTypes="[vlt:HierarchyNode]"
         sling:resourceType="composum/platform/workflow/components/mail/emailtemplate"
         jcr:description="A simple 'hello world' email"
         jcr:title="hello world"

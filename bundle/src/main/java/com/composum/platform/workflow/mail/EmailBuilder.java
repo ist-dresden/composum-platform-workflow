@@ -1,12 +1,13 @@
 package com.composum.platform.workflow.mail;
 
 import com.composum.platform.commons.content.service.PlaceholderService;
+import com.composum.platform.commons.util.FileHandleDataSource;
 import com.composum.platform.models.simple.LoadedResource;
+import com.composum.sling.clientlibs.handle.FileHandle;
 import com.composum.sling.core.BeanContext;
+import com.composum.sling.core.util.ResourceUtil;
 import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.mail.Email;
-import org.apache.commons.mail.HtmlEmail;
-import org.apache.commons.mail.SimpleEmail;
+import org.apache.commons.mail.*;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.CompositeValueMap;
@@ -14,6 +15,7 @@ import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.activation.DataSource;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.mail.internet.AddressException;
@@ -55,7 +57,7 @@ public class EmailBuilder {
     protected final ValueMap combinedProperties;
 
     public EmailBuilder(@Nonnull BeanContext context, @Nullable Resource template) {
-        this.template = template != null ? new LoadedResource(template) : null;
+        this.template = template;
         this.beanContext = context;
         if (template != null) {
             combinedProperties = new CompositeValueMap(
@@ -69,6 +71,7 @@ public class EmailBuilder {
 
     @Nonnull
     public Email buildEmail(@Nonnull PlaceholderService placeholderService) throws EmailSendingException {
+        List<FileHandle> attachments = retrieveAttachments();
         try {
             Email email;
             String body = replacePlaceholders(combinedProperties.get(PROP_BODY, String.class), placeholderService);
@@ -80,9 +83,17 @@ public class EmailBuilder {
                 }
                 htmlEmail.setHtmlMsg(html);
                 email = htmlEmail;
+            } else if (!attachments.isEmpty()) {
+                email = new MultiPartEmail();
             } else {
-                email = new SimpleEmail();
-                email.setMsg(body);
+                    email = new SimpleEmail();
+                    email.setMsg(body);
+            }
+            if (!attachments.isEmpty()) {
+                MultiPartEmail multipartMail = (MultiPartEmail) email;
+                for (FileHandle fileHandle : attachments) {
+                    attach(fileHandle, multipartMail);
+                }
             }
             email.setSubject(replacePlaceholders(combinedProperties.get(PROP_SUBJECT, String.class), placeholderService));
             email.setFrom(combinedProperties.get(PROP_FROM, String.class));
@@ -112,6 +123,23 @@ public class EmailBuilder {
         } catch (Exception e) {
             throw new EmailSendingException(e);
         }
+    }
+
+    protected void attach(FileHandle fileHandle, MultiPartEmail email) throws EmailException {
+        DataSource ds = new FileHandleDataSource(fileHandle);
+        email.attach(ds, fileHandle.getName(), null);
+    }
+
+    protected List<FileHandle> retrieveAttachments() {
+        List<FileHandle> res = new ArrayList<>();
+        if (template != null) {
+            for (Resource child : template.getChildren()) {
+                if (ResourceUtil.isFile(child)) {
+                    res.add(new FileHandle(child));
+                }
+            }
+        }
+        return res;
     }
 
     protected List<InternetAddress> adressesFrom(String[] values) throws EmailSendingException {
