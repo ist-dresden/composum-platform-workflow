@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jcr:root xmlns:jcr="http://www.jcp.org/jcr/1.0"
+        xmlns:nt="http://www.jcp.org/jcr/nt/1.0"
+        xmlns:sling="http://sling.apache.org/jcr/sling/1.0"
+        jcr:primaryType="nt:unstructured"
+        jcr:mixinTypes="[vlt:FullCoverage]"
+        sling:resourceType="composum/platform/workflow/components/mail/emailtemplate"
+        jcr:description="A simple 'hello world' email"
+        jcr:title="hello world"
+        bcc="hps@ist-software.com"
+        body="This is a simple email template with to placeholders B and S, S being in the subject and B being ${B}."
+        bounceAddress="hps@ist-software.com"
+        from="hps@ist-software.com"
+        html="This is a simple email template with to placeholders B and S, S being in the subject and B being ${B}."
+        replyTo="[hps@ist-software.com,hps@ist-software.com]"
+        subject="Hello World! ${S}"
+        to="hps@ist-software.com">
+</jcr:root>

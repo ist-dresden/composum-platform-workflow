@@ -5,6 +5,7 @@ import com.composum.platform.models.simple.LoadedResource;
 import com.composum.sling.core.BeanContext;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.mail.Email;
+import org.apache.commons.mail.HtmlEmail;
 import org.apache.commons.mail.SimpleEmail;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ValueMap;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.commons.collections.CollectionUtils.isNotEmpty;
+import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
 /**
  * Class collecting the data for an email from email templates (resources) and explicit setters.
@@ -39,7 +41,12 @@ public class EmailBuilder {
     public static final String PROP_CC = "cc";
     public static final String PROP_BCC = "bcc";
     public static final String PROP_REPLYTO = "replyTo";
+    public static final String PROP_BOUNCE_ADDRESS = "bounceAddress";
     public static final String PROP_BODY = "body";
+    /**
+     * Optional HTML body for the mail.
+     */
+    public static final String PROP_HTML = "html";
 
     protected final BeanContext beanContext;
     protected final Resource template;
@@ -52,23 +59,44 @@ public class EmailBuilder {
         this.beanContext = context;
         if (template != null) {
             combinedProperties = new CompositeValueMap(
-                    new ValueMapDecorator((Map) overridingProperties),
+                    new ValueMapDecorator(overridingProperties),
                     template.getValueMap()
             );
         } else {
-            combinedProperties = new ValueMapDecorator((Map) overridingProperties);
+            combinedProperties = new ValueMapDecorator(overridingProperties);
         }
     }
 
     @Nonnull
     public Email buildEmail(@Nonnull PlaceholderService placeholderService) throws EmailSendingException {
         try {
-            Email email = new SimpleEmail();
+            Email email;
+            String body = replacePlaceholders(combinedProperties.get(PROP_BODY, String.class), placeholderService);
+            String html = replacePlaceholders(combinedProperties.get(PROP_HTML, String.class), placeholderService);
+            if (isNotBlank(html)) {
+                HtmlEmail htmlEmail = new HtmlEmail();
+                if (isNotBlank(body)) {
+                    htmlEmail.setTextMsg(body);
+                }
+                htmlEmail.setHtmlMsg(html);
+                email = htmlEmail;
+            } else {
+                email = new SimpleEmail();
+                email.setMsg(body);
+            }
             email.setSubject(replacePlaceholders(combinedProperties.get(PROP_SUBJECT, String.class), placeholderService));
             email.setFrom(combinedProperties.get(PROP_FROM, String.class));
             List<InternetAddress> tos = adressesFrom(combinedProperties.get(PROP_TO, String[].class));
             if (isNotEmpty(tos)) {
                 email.setTo(tos);
+            }
+            List<InternetAddress> replyTos = adressesFrom(combinedProperties.get(PROP_REPLYTO, String[].class));
+            if (isNotEmpty(replyTos)) {
+                email.setReplyTo(replyTos);
+            }
+            String bounceAddress = combinedProperties.get(PROP_BOUNCE_ADDRESS, String.class);
+            if (isNotBlank(bounceAddress)) {
+                email.setBounceAddress(bounceAddress);
             }
             List<InternetAddress> ccs = adressesFrom(combinedProperties.get(PROP_CC, String[].class));
             if (isNotEmpty(ccs)) {
@@ -78,7 +106,6 @@ public class EmailBuilder {
             if (isNotEmpty(bccs)) {
                 email.setBcc(bccs);
             }
-            email.setMsg(replacePlaceholders(combinedProperties.get(PROP_BODY, String.class), placeholderService));
             return email;
         } catch (EmailSendingException e) {
             throw e;
@@ -103,7 +130,7 @@ public class EmailBuilder {
     }
 
     protected String replacePlaceholders(String prop, PlaceholderService placeholderService) {
-        return placeholderService.applyPlaceholders(beanContext, prop, placeholders);
+        return isNotBlank(prop) ? placeholderService.applyPlaceholders(beanContext, prop, placeholders) : prop;
     }
 
     public EmailBuilder addPlaceholder(@Nonnull String placeholder, @Nonnull Object value) {
@@ -111,7 +138,7 @@ public class EmailBuilder {
         return this;
     }
 
-    public EmailBuilder addPlaceholder(@Nonnull Map<String, Object> placeholders) {
+    public EmailBuilder addPlaceholders(@Nonnull Map<String, Object> placeholders) {
         placeholders.putAll(placeholders);
         return this;
     }
@@ -141,13 +168,23 @@ public class EmailBuilder {
         return this;
     }
 
-    public EmailBuilder setReplyTo(@Nonnull String replyTo) {
+    public EmailBuilder setReplyTo(@Nonnull String... replyTo) {
         overridingProperties.put(PROP_REPLYTO, replyTo);
+        return this;
+    }
+
+    public EmailBuilder setBounceAddress(@Nonnull String bounceAddress) {
+        overridingProperties.put(PROP_BOUNCE_ADDRESS, bounceAddress);
         return this;
     }
 
     public EmailBuilder setBody(@Nonnull String body) {
         overridingProperties.put(PROP_BODY, body);
+        return this;
+    }
+
+    public EmailBuilder setHTML(@Nonnull String html) {
+        overridingProperties.put(PROP_HTML, html);
         return this;
     }
 

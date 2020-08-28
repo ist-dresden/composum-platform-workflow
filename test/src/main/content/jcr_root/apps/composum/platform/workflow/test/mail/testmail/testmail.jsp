@@ -11,13 +11,16 @@ Mailing now.
 <%
     EmailService service = sling.getService(EmailService.class);
     Resource serverConfigResource = resourceResolver.getResource("/var/composum/platform/mail/composum/platform/workflow/test/mail/server/sendgrid");
+    Resource emailTemplateResource = resourceResolver.getResource("/var/composum/platform/mail/composum/platform/workflow/test/mail/templates/helloworld");
 
-    EmailBuilder email = new EmailBuilder(new BeanContext.Page(pageContext), null);
-    email.setFrom("hps@ist-software.com");
-    email.setSubject("TestMail ${X} too");
-    email.setBody("This is a test impl ... :-)");
-    email.setTo("hps@ist-software.com");
-    email.addPlaceholder( "X", "is this");
+    EmailBuilder email = new EmailBuilder(new BeanContext.Page(pageContext), emailTemplateResource);
+    // email.setFrom("hps@ist-software.com");
+    // email.setSubject("TestMail ${X} too");
+    // email.setBody("This is a test impl ... :-)");
+    // email.setTo("hps@ist-software.com");
+    // email.addPlaceholder( "X", "is this");
+    email.addPlaceholder("B", "-BVALUE-");
+    email.addPlaceholder("S", "-SVALUE-");
     Future<String> result = service.sendMail(email, serverConfigResource);
 %>
-Sent - the result <%= result.get() %>
+Sent template - the result <%= result.get() %>

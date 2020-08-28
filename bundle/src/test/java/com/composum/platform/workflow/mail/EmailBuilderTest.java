@@ -54,6 +54,7 @@ public class EmailBuilderTest {
         builder.setTo("to1@example.net", "to2@example.net");
         builder.setCC("cc@example.net");
         builder.setBCC("bcc@example.net");
+        builder.setReplyTo("reply@example.net");
         builder.setSubject("Hallo ${name}!");
         builder.setBody("Good morning, Mr. ${surname}!\nHow are you, ${name}?");
         builder.addPlaceholder("surname", "Meier");
@@ -61,6 +62,7 @@ public class EmailBuilderTest {
         Email mail = builder.buildEmail(placeholderService);
         ec.checkThat(normalizedMessage(mail), is("Date: (deleted)\n" +
                 "From: from@somewhere.net\n" +
+                "Reply-To: reply@example.net\n" +
                 "To: to1@example.net, to2@example.net\n" +
                 "Cc: cc@example.net\n" +
                 "Bcc: bcc@example.net\n" +
@@ -107,7 +109,42 @@ public class EmailBuilderTest {
         return buf.toString()
                 .replaceAll("(?m)^Date:.*$", "Date: (deleted)")
                 .replaceAll("(?m)^Message-ID:.*$", "Message-ID: (deleted)")
-                .replaceAll("\\r\\n", "\n");
+                .replaceAll("\\r\\n", "\n")
+                .replaceAll("Part_[0-9._]+", "(partid)");
     }
+
+    @Test
+    public void htmlEmail() throws Exception {
+        EmailBuilder builder = new EmailBuilder(new BeanContext.Map(), null);
+        builder.setFrom("from@somewhere.net");
+        builder.setTo("to@example.net");
+        builder.setSubject("Hallo ${name}!");
+        builder.setBody("Good morning, Mr. ${name}!");
+        builder.setHTML("<P>Good morning, Mr. <EM>${name}</EM>!</P>");
+        builder.addPlaceholder("name", "Franz");
+        Email mail = builder.buildEmail(placeholderService);
+        ec.checkThat(normalizedMessage(mail), is("Date: (deleted)\n" +
+                "From: from@somewhere.net\n" +
+                "To: to@example.net\n" +
+                "Message-ID: (deleted)\n" +
+                "Subject: Hallo Franz!\n" +
+                "MIME-Version: 1.0\n" +
+                "Content-Type: multipart/alternative; \n" +
+                "\tboundary=\"----=_(partid)\"\n" +
+                "\n" +
+                "------=_(partid)\n" +
+                "Content-Type: text/plain; charset=us-ascii\n" +
+                "Content-Transfer-Encoding: 7bit\n" +
+                "\n" +
+                "Good morning, Mr. Franz!\n" +
+                "------=_(partid)\n" +
+                "Content-Type: text/html; charset=us-ascii\n" +
+                "Content-Transfer-Encoding: 7bit\n" +
+                "\n" +
+                "<P>Good morning, Mr. <EM>Franz</EM>!</P>\n" +
+                "------=_(partid)--\n"));
+    }
+
+
 
 }
