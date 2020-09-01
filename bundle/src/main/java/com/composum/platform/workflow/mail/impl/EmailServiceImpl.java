@@ -86,7 +86,8 @@ public class EmailServiceImpl implements EmailService {
                     StringUtils.isNotBlank(serverConfig.getCredentialId()) ?
                             credentialService.getMailAuthenticator(serverConfig.getCredentialId(), serverConfigResource.getResourceResolver()) : null;
             initFromServerConfig(email, serverConfig, authenticator);
-        } catch (RepositoryException e) { // acl failure
+            email.buildMimeMessage();
+        } catch (RepositoryException | EmailException e) { // acl failure
             throw new EmailSendingException(e);
         }
         return email;
@@ -136,7 +137,7 @@ public class EmailServiceImpl implements EmailService {
 
     protected String sendEmail(Email email) throws EmailSendingException {
         try {
-            String messageId = email.send();
+            String messageId = email.sendMimeMessage();
             LOG.info("Sent email {}", messageId);
             return messageId;
         } catch (EmailException | RuntimeException e) {
@@ -261,7 +262,7 @@ public class EmailServiceImpl implements EmailService {
     }
 
     /**
-     * Object modeling several retries
+     * Task for doing several sending retries.
      */
     protected class EmailTask {
 
@@ -289,12 +290,18 @@ public class EmailServiceImpl implements EmailService {
                 resultFuture.complete(messageId);
             } catch (EmailSendingException e) {
                 Config conf = config;
-                if (conf.enabled() && conf.retries() > retry && e.isRetryable()) {
+                if (conf.enabled() && e.isRetryable()) {
                     LOG.info("Try {} failed because of {}", retry, e.toString());
-                    try {
-                        scheduledExecutorService.schedule(this::trySending, retryTime(conf), TimeUnit.SECONDS);
-                    } catch (RuntimeException | Error e2) {
-                        resultFuture.completeExceptionally(e2);
+                    if (conf.retries() > retry) {
+                        try {
+                            scheduledExecutorService.schedule(this::trySending, retryTime(conf), TimeUnit.SECONDS);
+                        } catch (RuntimeException | Error e2) {
+                            resultFuture.completeExceptionally(e2);
+                        }
+                    } else {
+                        LOG.info("Too many retries.");
+                        resultFuture.completeExceptionally(
+                                new EmailSendingException("Giving up after " + retry + " retries.", e));
                     }
                 } else {
                     resultFuture.completeExceptionally(e);

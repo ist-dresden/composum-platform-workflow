@@ -148,6 +148,7 @@ public class EmailServiceImplTest {
         try {
             service.sendMail(email, invalidServerConfigResource).get(3000, TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
+            e.printStackTrace();
             if (e.getCause() instanceof EmailSendingException) {
                 EmailSendingException emailSendingException = (EmailSendingException) e.getCause();
                 Throwable socketTimeout = emailSendingException;
@@ -163,6 +164,28 @@ public class EmailServiceImplTest {
             fail("Got " + t);
         }
     }
+
+    @Test
+    public void retries() throws Throwable {
+        EmailBuilder email = new EmailBuilder(beanContext, null);
+        email.setFrom("something@example.net");
+        email.setSubject("TestMail");
+        email.setBody("This is a test impl ... :-)");
+        email.setTo("somethingelse@example.net");
+        when(config.retries()).thenReturn(3);
+        when(config.retryTime()).thenReturn(1);
+        long begin = System.currentTimeMillis();
+        try {
+            service.sendMail(email, invalidServerConfigResource).get(20000, TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            ec.checkThat(e.getCause().getMessage(), is("Giving up after 3 retries."));
+            long time = System.currentTimeMillis() - begin;
+            ec.checkThat("" + time, time >= 6000, is(true));
+            ec.checkThat("" + time, time < 10000, is(true));
+        }
+    }
+
+    // FIXME(hps,01.09.20) sinnvolles logging im EmailService
 
     @Test
     public void isValid() {
