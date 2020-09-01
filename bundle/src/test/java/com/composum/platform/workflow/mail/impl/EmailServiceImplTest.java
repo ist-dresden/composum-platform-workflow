@@ -12,10 +12,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.apache.sling.commons.threads.ThreadPool;
 import org.apache.sling.commons.threads.ThreadPoolManager;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -24,6 +21,7 @@ import org.mockito.Spy;
 import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
 import javax.mail.PasswordAuthentication;
+import java.net.SocketTimeoutException;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -31,6 +29,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -139,7 +138,7 @@ public class EmailServiceImplTest {
         service.sendMail(email, serverConfigResource);
     }
 
-    @Test(expected = EmailSendingException.class, timeout = 2000)
+    @Test(expected = SocketTimeoutException.class, timeout = 2000)
     public void noConnection() throws Throwable {
         EmailBuilder email = new EmailBuilder(beanContext, null);
         email.setFrom("something@example.net");
@@ -148,8 +147,15 @@ public class EmailServiceImplTest {
         email.setTo("somethingelse@example.net");
         try {
             service.sendMail(email, invalidServerConfigResource).get(3000, TimeUnit.MILLISECONDS);
-        } catch (ExecutionException e) {
-            throw e.getCause();
+        } catch (EmailSendingException e) {
+            Throwable socketTimeout = e;
+            while (socketTimeout != null && !(socketTimeout instanceof SocketTimeoutException)) {
+                socketTimeout = socketTimeout.getCause();
+            }
+            throw socketTimeout;
+        } catch (Throwable t) { // ExecutionException is possible if the first attempt is not done right away.
+            t.printStackTrace();
+            fail("Got " + t);
         }
     }
 

@@ -1,7 +1,5 @@
 package com.composum.platform.workflow.mail;
 
-import org.apache.commons.mail.Email;
-import org.apache.commons.mail.EmailException;
 import org.apache.sling.api.resource.Resource;
 
 import javax.annotation.Nonnull;
@@ -25,7 +23,9 @@ public interface EmailService {
     boolean isValid(@Nullable String emailAdress);
 
     /**
-     * Sends an email asynchronously. If you need it done synchronously, just use {@link Future#get(long, TimeUnit)} on the result.
+     * Sends an email asynchronously. If you need it done synchronously, just use {@link Future#get(long, TimeUnit)}
+     * on the result. Caution: if the server crashes before it's sent or if there is a connection to the mail relay,
+     * this loses the email.
      *
      * @param email        the content of the email
      * @param serverConfig the resource containing the configuration of the email server
@@ -33,5 +33,16 @@ public interface EmailService {
      */
     @Nonnull
     Future<String> sendMail(@Nonnull EmailBuilder email, @Nonnull Resource serverConfig) throws EmailSendingException;
+
+    /**
+     * Sends an email immediately, returning only when it's sent successfully, or an exception occurred.
+     * No retries are done.
+     *
+     * @param email        the content of the email
+     * @param serverConfig the resource containing the configuration of the email server
+     * @return the message-ID
+     */
+    @Nonnull
+    String sendMailImmediately(@Nonnull EmailBuilder email, @Nonnull Resource serverConfig) throws EmailSendingException;
 
 }

@@ -26,8 +26,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 
 import static com.composum.platform.workflow.mail.EmailServerConfigModel.*;
 
@@ -97,13 +96,47 @@ public class EmailServiceImpl implements EmailService {
     public Future<String> sendMail(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
         verifyEnabled();
         Email email = prepareEmail(emailBuilder, serverConfig);
-        return executorService.submit(() -> sendEmail(email));
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Queueing {}", emailBuilder.toString());
+        }
+        Future<String> future = executorService.submit(() -> sendEmail(email));
+        try { // That might catch immediate errors with the email in many cases, but doesn't hold us up much.
+            future.get(10, TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            throw wrapAndThrowException(e.getCause());
+        } catch (TimeoutException | InterruptedException e) { //
+            LOG.debug("Ignored: " + e);
+        }
+        return future;
+    }
+
+    protected EmailSendingException wrapAndThrowException(Throwable exception) throws EmailSendingException {
+        if (exception instanceof EmailSendingException) {
+            throw (EmailSendingException) exception;
+        } else if (exception instanceof Error) {
+            throw (Error) exception;
+        } else {
+            throw new EmailSendingException((Exception) exception);
+        }
+    }
+
+    @Nonnull
+    @Override
+    public String sendMailImmediately(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
+        verifyEnabled();
+        Email email = prepareEmail(emailBuilder, serverConfig);
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Sending {}", emailBuilder.toString());
+        }
+        return sendEmail(email);
     }
 
     protected String sendEmail(Email email) throws EmailSendingException {
         try {
-            return email.send();
-        } catch (EmailException e) {
+            String messageId = email.send();
+            LOG.info("Sent email {}", messageId);
+            return messageId;
+        } catch (EmailException | RuntimeException e) {
             throw new EmailSendingException(e);
         }
     }

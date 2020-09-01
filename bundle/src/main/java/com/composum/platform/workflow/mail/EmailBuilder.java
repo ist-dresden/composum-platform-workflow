@@ -1,12 +1,12 @@
 package com.composum.platform.workflow.mail;
 
 import com.composum.platform.commons.content.service.PlaceholderService;
-import com.composum.platform.commons.util.FileHandleDataSource;
-import com.composum.platform.models.simple.LoadedResource;
+import com.composum.platform.commons.util.FileResourceDataSource;
 import com.composum.sling.clientlibs.handle.FileHandle;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.util.ResourceUtil;
 import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.mail.*;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ValueMap;
@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.apache.commons.collections.CollectionUtils.isNotEmpty;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
@@ -55,6 +56,10 @@ public class EmailBuilder {
     protected final Map<String, Object> placeholders = new LinkedHashMap<>();
     protected final Map<String, Object> overridingProperties = new LinkedHashMap<>();
     protected final ValueMap combinedProperties;
+    /**
+     * Attachments that are not contained in the template.
+     */
+    protected final List<Pair<String, DataSource>> additionalAttachments = new ArrayList<>();
 
     public EmailBuilder(@Nonnull BeanContext context, @Nullable Resource template) {
         this.template = template;
@@ -76,6 +81,7 @@ public class EmailBuilder {
             Email email;
             String body = replacePlaceholders(combinedProperties.get(PROP_BODY, String.class), placeholderService);
             String html = replacePlaceholders(combinedProperties.get(PROP_HTML, String.class), placeholderService);
+            boolean haveAttachments = !attachments.isEmpty() || !additionalAttachments.isEmpty();
             if (isNotBlank(html)) {
                 HtmlEmail htmlEmail = new HtmlEmail();
                 if (isNotBlank(body)) {
@@ -83,16 +89,19 @@ public class EmailBuilder {
                 }
                 htmlEmail.setHtmlMsg(html);
                 email = htmlEmail;
-            } else if (!attachments.isEmpty()) {
+            } else if (haveAttachments) {
                 email = new MultiPartEmail();
             } else {
-                    email = new SimpleEmail();
-                    email.setMsg(body);
+                email = new SimpleEmail();
+                email.setMsg(body);
             }
-            if (!attachments.isEmpty()) {
+            if (haveAttachments) {
                 MultiPartEmail multipartMail = (MultiPartEmail) email;
                 for (FileHandle fileHandle : attachments) {
                     attach(fileHandle, multipartMail);
+                }
+                for (Pair<String, DataSource> additionalAttachment : additionalAttachments) {
+                    ((MultiPartEmail) email).attach(additionalAttachment.getRight(), additionalAttachment.getLeft(), null);
                 }
             }
             email.setSubject(replacePlaceholders(combinedProperties.get(PROP_SUBJECT, String.class), placeholderService));
@@ -126,7 +135,7 @@ public class EmailBuilder {
     }
 
     protected void attach(FileHandle fileHandle, MultiPartEmail email) throws EmailException {
-        DataSource ds = new FileHandleDataSource(fileHandle);
+        DataSource ds = new FileResourceDataSource(fileHandle);
         email.attach(ds, fileHandle.getName(), null);
     }
 
@@ -135,7 +144,12 @@ public class EmailBuilder {
         if (template != null) {
             for (Resource child : template.getChildren()) {
                 if (ResourceUtil.isFile(child)) {
-                    res.add(new FileHandle(child));
+                    FileHandle fileHandle = new FileHandle(child);
+                    if (fileHandle.isValid()) {
+                        res.add(fileHandle);
+                    } else {
+                        LOG.error("Invalid file: {}", child.getPath());
+                    }
                 }
             }
         }
@@ -216,12 +230,28 @@ public class EmailBuilder {
         return this;
     }
 
+    /**
+     * Add an attachment that's not contained in the template.
+     *
+     * @param name the name of the attachment
+     * @param data a {@link DataSource} with the data, possibly a {@link FileResourceDataSource}.
+     */
+    public EmailBuilder addAttachment(String name, DataSource data) {
+        additionalAttachments.add(Pair.of(name, data));
+        return this;
+    }
+
     @Override
     public String toString() {
-        return new ToStringBuilder(this)
+        ToStringBuilder builder = new ToStringBuilder(this);
+        builder
                 .append("template", template)
                 .append("overridingProperties", overridingProperties)
-                .append("placeholders", placeholders)
-                .toString();
+                .append("placeholders", placeholders);
+        if (isNotEmpty(additionalAttachments)) {
+            builder.append("addAttachments",
+                    additionalAttachments.stream().map(Pair::getLeft).collect(Collectors.joining(",")));
+        }
+        return builder.toString();
     }
 }
