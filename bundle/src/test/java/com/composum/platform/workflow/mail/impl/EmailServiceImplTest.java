@@ -7,12 +7,15 @@ import com.composum.platform.workflow.mail.EmailBuilder;
 import com.composum.platform.workflow.mail.EmailSendingException;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.platform.testing.testutil.ErrorCollectorAlwaysPrintingFailures;
-import org.apache.commons.lang3.concurrent.ConcurrentUtils;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.apache.sling.commons.threads.ThreadPool;
+import org.apache.sling.commons.threads.ThreadPoolConfig;
 import org.apache.sling.commons.threads.ThreadPoolManager;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -23,15 +26,16 @@ import javax.mail.Authenticator;
 import javax.mail.PasswordAuthentication;
 import java.net.SocketTimeoutException;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 /**
@@ -54,8 +58,8 @@ public class EmailServiceImplTest {
     @Mock
     protected ThreadPoolManager threadPoolManager;
 
-    @Mock
-    protected ThreadPool threadPool;
+    @Spy
+    protected TestingThreadPool threadPool = new TestingThreadPool();
 
     @Mock
     protected EmailServiceImpl.Config config;
@@ -101,24 +105,20 @@ public class EmailServiceImplTest {
         when(config.connectionTimeout()).thenReturn(1000);
         when(config.socketTimeout()).thenReturn(1000);
         when(threadPoolManager.get(anyString())).thenReturn(threadPool);
-        when(threadPool.submit(any(Callable.class))).thenAnswer(
-                (invocation) -> {
-                    CompletableFuture future = new CompletableFuture();
-                    try {
-                        Callable callable = invocation.getArgument(0, Callable.class);
-                        future.complete(callable.call());
-                    } catch (Throwable t) {
-                        future.completeExceptionally(t);
-                    }
-                    return future;
-                }
-        );
+        doAnswer((invocation) -> {
+            threadPool.shutdownNow();
+            return null;
+        }).when(threadPoolManager).release(threadPool);
         service.activate(config);
     }
 
     @After
     public void tearDown() {
         service.deactivate();
+        if (!threadPool.isShutdown()) {
+            threadPool.shutdownNow();
+            fail("Threadpool was not shut down!");
+        }
     }
 
     /**
@@ -147,12 +147,17 @@ public class EmailServiceImplTest {
         email.setTo("somethingelse@example.net");
         try {
             service.sendMail(email, invalidServerConfigResource).get(3000, TimeUnit.MILLISECONDS);
-        } catch (EmailSendingException e) {
-            Throwable socketTimeout = e;
-            while (socketTimeout != null && !(socketTimeout instanceof SocketTimeoutException)) {
-                socketTimeout = socketTimeout.getCause();
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof EmailSendingException) {
+                EmailSendingException emailSendingException = (EmailSendingException) e.getCause();
+                Throwable socketTimeout = emailSendingException;
+                while (socketTimeout != null && !(socketTimeout instanceof SocketTimeoutException)) {
+                    socketTimeout = socketTimeout.getCause();
+                }
+                throw socketTimeout != null ? socketTimeout : e;
+            } else {
+                throw e;
             }
-            throw socketTimeout;
         } catch (Throwable t) { // ExecutionException is possible if the first attempt is not done right away.
             t.printStackTrace();
             fail("Got " + t);
@@ -165,6 +170,24 @@ public class EmailServiceImplTest {
         ec.checkThat(service.isValid("broken"), is(false));
         ec.checkThat(service.isValid(""), is(false));
         ec.checkThat(service.isValid(null), is(false));
+    }
+
+    protected static class TestingThreadPool extends ThreadPoolExecutor implements ThreadPool {
+
+        public TestingThreadPool() {
+            super(2, 5, 5, TimeUnit.SECONDS, new ArrayBlockingQueue<>(100));
+        }
+
+        @Override
+        public String getName() {
+            return "testing threadpool";
+        }
+
+        @Override
+        public ThreadPoolConfig getConfiguration() {
+            throw new UnsupportedOperationException("Not implemented yet.");
+        }
+
     }
 
 }

@@ -2,6 +2,7 @@ package com.composum.platform.workflow.mail.impl;
 
 import com.composum.platform.commons.content.service.PlaceholderService;
 import com.composum.platform.commons.credentials.CredentialService;
+import com.composum.platform.commons.util.ScheduledExecutorServiceFromExecutorService;
 import com.composum.platform.commons.util.SlingThreadPoolExecutorService;
 import com.composum.platform.workflow.mail.EmailBuilder;
 import com.composum.platform.workflow.mail.EmailSendingException;
@@ -61,7 +62,7 @@ public class EmailServiceImpl implements EmailService {
     @Reference
     protected PlaceholderService placeholderService;
 
-    protected volatile ExecutorService executorService;
+    protected volatile ScheduledExecutorService scheduledExecutorService;
 
     protected volatile Config config;
 
@@ -99,9 +100,11 @@ public class EmailServiceImpl implements EmailService {
         if (LOG.isDebugEnabled()) {
             LOG.debug("Queueing {}", emailBuilder.toString());
         }
-        Future<String> future = executorService.submit(() -> sendEmail(email));
-        try { // That might catch immediate errors with the email in many cases, but doesn't hold us up much.
-            future.get(10, TimeUnit.MILLISECONDS);
+        EmailTask task = new EmailTask(email);
+        task.currentTry = scheduledExecutorService.submit(task::trySending);
+        Future<String> future = task.resultFuture;
+        try { // That might throw up on immediate errors with the email in some cases, but doesn't hold us up much.
+            future.get(50, TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
             throw wrapAndThrowException(e.getCause());
         } catch (TimeoutException | InterruptedException e) { //
@@ -112,7 +115,7 @@ public class EmailServiceImpl implements EmailService {
 
     protected EmailSendingException wrapAndThrowException(Throwable exception) throws EmailSendingException {
         if (exception instanceof EmailSendingException) {
-            throw (EmailSendingException) exception;
+            return (EmailSendingException) exception;
         } else if (exception instanceof Error) {
             throw (Error) exception;
         } else {
@@ -190,8 +193,10 @@ public class EmailServiceImpl implements EmailService {
         LOG.info("activated");
         this.config = theConfig;
         if (isEnabled()) {
-            if (executorService == null) {
-                this.executorService = new SlingThreadPoolExecutorService(threadPoolManager, THREADPOOL_NAME);
+            if (scheduledExecutorService == null) {
+                this.scheduledExecutorService =
+                        new ScheduledExecutorServiceFromExecutorService(
+                                new SlingThreadPoolExecutorService(threadPoolManager, THREADPOOL_NAME));
             }
         } else {
             shutdownExecutorService();
@@ -206,10 +211,22 @@ public class EmailServiceImpl implements EmailService {
     }
 
     protected void shutdownExecutorService() {
-        ExecutorService oldExecutorService = this.executorService;
-        this.executorService = null;
+        ScheduledExecutorService oldExecutorService = this.scheduledExecutorService;
+        this.scheduledExecutorService = null;
         if (oldExecutorService != null) {
             oldExecutorService.shutdown();
+        }
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        try {
+            if (scheduledExecutorService != null) {
+                LOG.error("Bug: ExecutorService is still not shutdown in finalize! " + scheduledExecutorService);
+            }
+            shutdownExecutorService();
+        } finally {
+            super.finalize();
         }
     }
 
@@ -231,6 +248,65 @@ public class EmailServiceImpl implements EmailService {
                 name = "Socket I/O timeout in milliseconds"
         )
         int socketTimeout() default 10000;
+
+        @AttributeDefinition(name = "Retries", required = true, description =
+                "The number of retries when we have connection failure to the mail relay. It starts with 5 minutes, " +
+                        "doubling the interval each time. That is, 10 at 300 seconds 1st retry is about 2 days.")
+        int retries() default 10;
+
+        @AttributeDefinition(name = "1st retry", required = true, description =
+                "Time in seconds after which the first retry for retryable failures is started.")
+        int retryTime() default 300;
+
+    }
+
+    /**
+     * Object modeling several retries
+     */
+    protected class EmailTask {
+
+        protected final Email email;
+        protected final CompletableFuture<String> resultFuture = new CompletableFuture<>() {
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning) {
+                if (currentTry != null) {
+                    currentTry.cancel(mayInterruptIfRunning);
+                }
+                return super.cancel(mayInterruptIfRunning);
+            }
+        };
+        protected volatile int retry = 0;
+        protected volatile Future<?> currentTry;
+
+        public EmailTask(Email email) {
+            this.email = email;
+        }
+
+        public void trySending() {
+            retry = retry + 1;
+            try {
+                String messageId = sendEmail(email);
+                resultFuture.complete(messageId);
+            } catch (EmailSendingException e) {
+                Config conf = config;
+                if (conf.enabled() && conf.retries() > retry && e.isRetryable()) {
+                    LOG.info("Try {} failed because of {}", retry, e.toString());
+                    try {
+                        scheduledExecutorService.schedule(this::trySending, retryTime(conf), TimeUnit.SECONDS);
+                    } catch (RuntimeException | Error e2) {
+                        resultFuture.completeExceptionally(e2);
+                    }
+                } else {
+                    resultFuture.completeExceptionally(e);
+                }
+            } catch (RuntimeException | Error e) {
+                resultFuture.completeExceptionally(e);
+            }
+        }
+
+        protected long retryTime(Config conf) {
+            return (long) (Math.pow(2, retry - 1) * conf.retryTime());
+        }
 
     }
 
