@@ -2,6 +2,8 @@ package com.composum.platform.workflow.mail;
 
 import com.composum.platform.models.simple.AbstractLoadedSlingBean;
 import com.composum.sling.core.BeanContext;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ValueMap;
 
@@ -87,5 +89,30 @@ public class EmailServerConfigModel extends AbstractLoadedSlingBean {
      */
     public String getConnectionType() {
         return connectionType;
+    }
+
+
+    @Override
+    public String toString() {
+        ToStringBuilder builder = new ToStringBuilder(this, ToStringStyle.SHORT_PREFIX_STYLE);
+        if (path != null) {
+            builder.append("path", path);
+        }
+        if (Boolean.TRUE.equals(enabled)) {
+            builder.append("enabled", enabled);
+        }
+        if (host != null) {
+            builder.append("host", host);
+        }
+        if (port != null) {
+            builder.append("port", port);
+        }
+        if (connectionType != null) {
+            builder.append("connectionType", connectionType);
+        }
+        if (credentialId != null) {
+            builder.append("credentialId", credentialId);
+        }
+        return builder.toString();
     }
 }

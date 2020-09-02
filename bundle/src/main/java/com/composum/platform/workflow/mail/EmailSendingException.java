@@ -28,7 +28,8 @@ public class EmailSendingException extends Exception {
     public boolean isRetryable() {
         Throwable cause = getCause();
         while (cause != null) {
-            if (cause instanceof SocketTimeoutException) {
+            // FIXME(hps,01.09.20) UnknownHostException raus
+            if (cause instanceof SocketTimeoutException || cause instanceof java.net.UnknownHostException) {
                 return true;
             }
             cause = cause.getCause();

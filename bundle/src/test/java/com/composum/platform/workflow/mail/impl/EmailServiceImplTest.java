@@ -24,12 +24,8 @@ import org.mockito.Spy;
 import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
 import javax.mail.PasswordAuthentication;
-import java.net.SocketTimeoutException;
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.fail;
@@ -138,34 +134,17 @@ public class EmailServiceImplTest {
         service.sendMail(email, serverConfigResource);
     }
 
-    @Test(expected = SocketTimeoutException.class, timeout = 2000)
+    @Test(expected = ExecutionException.class, timeout = 2000)
     public void noConnection() throws Throwable {
         EmailBuilder email = new EmailBuilder(beanContext, null);
         email.setFrom("something@example.net");
         email.setSubject("TestMail");
         email.setBody("This is a test impl ... :-)");
         email.setTo("somethingelse@example.net");
-        try {
-            service.sendMail(email, invalidServerConfigResource).get(3000, TimeUnit.MILLISECONDS);
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-            if (e.getCause() instanceof EmailSendingException) {
-                EmailSendingException emailSendingException = (EmailSendingException) e.getCause();
-                Throwable socketTimeout = emailSendingException;
-                while (socketTimeout != null && !(socketTimeout instanceof SocketTimeoutException)) {
-                    socketTimeout = socketTimeout.getCause();
-                }
-                throw socketTimeout != null ? socketTimeout : e;
-            } else {
-                throw e;
-            }
-        } catch (Throwable t) { // ExecutionException is possible if the first attempt is not done right away.
-            t.printStackTrace();
-            fail("Got " + t);
-        }
+        service.sendMail(email, invalidServerConfigResource).get(3000, TimeUnit.MILLISECONDS);
     }
 
-    @Test
+    @Test(timeout = 12000)
     public void retries() throws Throwable {
         EmailBuilder email = new EmailBuilder(beanContext, null);
         email.setFrom("something@example.net");
@@ -175,13 +154,16 @@ public class EmailServiceImplTest {
         when(config.retries()).thenReturn(3);
         when(config.retryTime()).thenReturn(1);
         long begin = System.currentTimeMillis();
+        Future<String> future = service.sendMail(email, invalidServerConfigResource);
         try {
-            service.sendMail(email, invalidServerConfigResource).get(20000, TimeUnit.MILLISECONDS);
+            future.get(20000, TimeUnit.MILLISECONDS);
+            fail("Failure expected");
         } catch (ExecutionException e) {
             ec.checkThat(e.getCause().getMessage(), is("Giving up after 3 retries."));
             long time = System.currentTimeMillis() - begin;
             ec.checkThat("" + time, time >= 6000, is(true));
             ec.checkThat("" + time, time < 10000, is(true));
+            ec.checkThat(future.isDone(), is(true));
         }
     }
 

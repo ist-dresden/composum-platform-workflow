@@ -5,7 +5,9 @@ import com.composum.platform.commons.util.FileResourceDataSource;
 import com.composum.sling.clientlibs.handle.FileHandle;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.util.ResourceUtil;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.mail.*;
 import org.apache.sling.api.resource.Resource;
@@ -20,10 +22,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.apache.commons.collections.CollectionUtils.isNotEmpty;
@@ -243,15 +242,60 @@ public class EmailBuilder {
 
     @Override
     public String toString() {
-        ToStringBuilder builder = new ToStringBuilder(this);
+        ToStringBuilder builder = new ToStringBuilder(this, ToStringStyle.SHORT_PREFIX_STYLE);
         builder
                 .append("template", template)
-                .append("overridingProperties", overridingProperties)
-                .append("placeholders", placeholders);
+                .append("overridingProperties", mapToString(overridingProperties))
+                .append("placeholders", mapToString(placeholders));
         if (isNotEmpty(additionalAttachments)) {
             builder.append("addAttachments",
                     additionalAttachments.stream().map(Pair::getLeft).collect(Collectors.joining(",")));
         }
         return builder.toString();
     }
+
+    protected static String mapToString(Map<String, Object> map) {
+        if (map == null) return "null";
+        return "{" + map.entrySet().stream()
+                .map((entry) -> {
+                    if (entry.getValue().getClass().isArray()) {
+                        return entry.getKey() + "=" + StringUtils.abbreviateMiddle(
+                                String.valueOf(Arrays.asList((Object[]) entry.getValue())), "...", 120);
+                    } else {
+                        return entry.getKey() + "=" + StringUtils.abbreviate(String.valueOf(entry.getValue()), 120);
+                    }
+                })
+                .map(Objects::toString)
+                .collect(Collectors.joining(", ")) + "}";
+    }
+
+    /**
+     * Some data we want to have in our logs to be able to identify an email. We try to exclude private data.
+     */
+    public String describeForLogging() {
+        StringBuilder buf = new StringBuilder("{");
+        String from = StringUtils.defaultIfBlank(combinedProperties.get(PROP_FROM, String.class), "");
+        buf.append(" from=").append(from.trim().hashCode());
+        String[] tos = combinedProperties.get(PROP_TO, String[].class);
+        if (tos != null) {
+            int num = 0;
+            for (String to : tos) {
+                if (++num > 3) {
+                    buf.append(" ...(").append(tos.length).append(")");
+                    break;
+                }
+                buf.append(" to=").append(
+                        StringUtils.defaultIfBlank(combinedProperties.get(PROP_FROM, String.class), "")
+                                .trim().hashCode()
+                );
+            }
+        }
+        if (template != null) {
+            buf.append(" tmpl=").append(template.getPath());
+        }
+        buf.append(" subj=").append(combinedProperties.get(PROP_SUBJECT, String.class));
+        buf.append(" }");
+        return buf.toString();
+    }
+
 }

@@ -9,6 +9,7 @@ import com.composum.platform.workflow.mail.EmailSendingException;
 import com.composum.platform.workflow.mail.EmailServerConfigModel;
 import com.composum.platform.workflow.mail.EmailService;
 import com.composum.sling.core.BeanContext;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.mail.Email;
 import org.apache.commons.mail.EmailException;
@@ -77,7 +78,7 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
-    protected Email prepareEmail(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfigResource) throws EmailSendingException {
+    protected Email prepareEmail(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfigResource, String loggingId) throws EmailSendingException {
         EmailServerConfigModel serverConfig = new EmailServerConfigModel();
         serverConfig.initialize(new BeanContext.Service(serverConfigResource.getResourceResolver()), serverConfigResource);
         Email email = emailBuilder.buildEmail(placeholderService);
@@ -85,9 +86,9 @@ public class EmailServiceImpl implements EmailService {
             Authenticator authenticator =
                     StringUtils.isNotBlank(serverConfig.getCredentialId()) ?
                             credentialService.getMailAuthenticator(serverConfig.getCredentialId(), serverConfigResource.getResourceResolver()) : null;
-            initFromServerConfig(email, serverConfig, authenticator);
+            initFromServerConfig(email, serverConfig, authenticator, loggingId);
             email.buildMimeMessage();
-        } catch (RepositoryException | EmailException e) { // acl failure
+        } catch (RepositoryException | EmailException e) { // acl failure or failure building the message
             throw new EmailSendingException(e);
         }
         return email;
@@ -97,11 +98,12 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public Future<String> sendMail(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
         verifyEnabled();
-        Email email = prepareEmail(emailBuilder, serverConfig);
+        String loggingId = makeLoggingId(emailBuilder, serverConfig);
+        Email email = prepareEmail(emailBuilder, serverConfig, loggingId);
         if (LOG.isDebugEnabled()) {
-            LOG.debug("Queueing {}", emailBuilder.toString());
+            LOG.debug("Queueing {} : {}", loggingId, emailBuilder.toString());
         }
-        EmailTask task = new EmailTask(email);
+        EmailTask task = new EmailTask(email, loggingId);
         task.currentTry = scheduledExecutorService.submit(task::trySending);
         Future<String> future = task.resultFuture;
         try { // That might throw up on immediate errors with the email in some cases, but doesn't hold us up much.
@@ -109,9 +111,18 @@ public class EmailServiceImpl implements EmailService {
         } catch (ExecutionException e) {
             throw wrapAndThrowException(e.getCause());
         } catch (TimeoutException | InterruptedException e) { //
-            LOG.debug("Ignored: " + e);
+            LOG.debug("Ignored for {} : {} ", loggingId, e.toString());
         }
         return future;
+    }
+
+    /**
+     * Creates an id that is put into all logging messages to ensure we can identify all messages belonging to an email, which would be impossible otherwise since it's run in several threads.
+     */
+    protected String makeLoggingId(EmailBuilder emailBuilder, Resource serverConfig) {
+        String id = RandomStringUtils.randomAlphanumeric(10);
+        LOG.info("Assigning logId {} to {} with servercfg {}", id, emailBuilder.describeForLogging(), serverConfig.getPath());
+        return id;
     }
 
     protected EmailSendingException wrapAndThrowException(Throwable exception) throws EmailSendingException {
@@ -128,24 +139,25 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public String sendMailImmediately(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
         verifyEnabled();
-        Email email = prepareEmail(emailBuilder, serverConfig);
+        String loggingId = makeLoggingId(emailBuilder, serverConfig);
+        Email email = prepareEmail(emailBuilder, serverConfig, loggingId);
         if (LOG.isDebugEnabled()) {
-            LOG.debug("Sending {}", emailBuilder.toString());
+            LOG.debug("Sending with {} : {}", loggingId, emailBuilder.toString());
         }
-        return sendEmail(email);
+        return sendEmail(email, loggingId);
     }
 
-    protected String sendEmail(Email email) throws EmailSendingException {
+    protected String sendEmail(Email email, String loggingId) throws EmailSendingException {
         try {
             String messageId = email.sendMimeMessage();
-            LOG.info("Sent email {}", messageId);
+            LOG.info("Sent email {} : {}", loggingId, messageId);
             return messageId;
         } catch (EmailException | RuntimeException e) {
             throw new EmailSendingException(e);
         }
     }
 
-    protected void initFromServerConfig(@Nonnull Email email, @Nonnull EmailServerConfigModel serverConfig, Authenticator authenticator) throws EmailSendingException {
+    protected void initFromServerConfig(@Nonnull Email email, @Nonnull EmailServerConfigModel serverConfig, Authenticator authenticator, String loggingId) throws EmailSendingException {
         verifyEnabled();
         if (serverConfig == null) {
             throw new IllegalArgumentException("No email server configuration given");
@@ -158,7 +170,7 @@ public class EmailServiceImpl implements EmailService {
         }
         if (!serverConfig.getEnabled()) {
             LOG.warn("Trying to send email with disabled server {}", serverConfig.getPath());
-            throw new EmailSendingException("Email-server not enabled.");
+            throw new EmailSendingException("Email-server not enabled: " + serverConfig.getPath());
         }
         email.setHostName(serverConfig.getHost());
         String connectionType = serverConfig.getConnectionType();
@@ -174,6 +186,7 @@ public class EmailServiceImpl implements EmailService {
         if (authenticator != null) {
             email.setAuthenticator(authenticator);
         }
+        LOG.debug("Using serverCfg for {} : {}", loggingId, serverConfig.toString());
     }
 
     protected void verifyEnabled() throws EmailSendingException {
@@ -191,7 +204,6 @@ public class EmailServiceImpl implements EmailService {
     @Activate
     @Modified
     protected void activate(Config theConfig) {
-        LOG.info("activated");
         this.config = theConfig;
         if (isEnabled()) {
             if (scheduledExecutorService == null) {
@@ -202,6 +214,7 @@ public class EmailServiceImpl implements EmailService {
         } else {
             shutdownExecutorService();
         }
+        LOG.info("activated - enabled: {}", isEnabled());
     }
 
     @Deactivate
@@ -278,28 +291,34 @@ public class EmailServiceImpl implements EmailService {
         };
         protected volatile int retry = 0;
         protected volatile Future<?> currentTry;
+        /**
+         * Something that can be used to uniquely identify the mail for the logfile.
+         */
+        protected final String loggingId;
 
-        public EmailTask(Email email) {
+        public EmailTask(Email email, String loggingId) {
             this.email = email;
+            this.loggingId = loggingId;
         }
 
         public void trySending() {
             retry = retry + 1;
             try {
-                String messageId = sendEmail(email);
+                String messageId = sendEmail(email, loggingId);
                 resultFuture.complete(messageId);
             } catch (EmailSendingException e) {
                 Config conf = config;
                 if (conf.enabled() && e.isRetryable()) {
-                    LOG.info("Try {} failed because of {}", retry, e.toString());
+                    long delay = retryTime(conf);
+                    LOG.info("Try {} failed for {} because of {}, retry delay {}", retry, loggingId, e.toString(), delay);
                     if (conf.retries() > retry) {
                         try {
-                            scheduledExecutorService.schedule(this::trySending, retryTime(conf), TimeUnit.SECONDS);
+                            scheduledExecutorService.schedule(this::trySending, delay, TimeUnit.SECONDS);
                         } catch (RuntimeException | Error e2) {
                             resultFuture.completeExceptionally(e2);
                         }
                     } else {
-                        LOG.info("Too many retries.");
+                        LOG.info("Giving up after {} retries for {}", retry, loggingId);
                         resultFuture.completeExceptionally(
                                 new EmailSendingException("Giving up after " + retry + " retries.", e));
                     }
@@ -312,7 +331,7 @@ public class EmailServiceImpl implements EmailService {
         }
 
         protected long retryTime(Config conf) {
-            return (long) (Math.pow(2, retry - 1) * conf.retryTime());
+            return (long) Math.pow(2, retry - 1) * conf.retryTime();
         }
 
     }
