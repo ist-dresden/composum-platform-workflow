@@ -1,6 +1,8 @@
 package com.composum.platform.workflow.mail;
 
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 
 /**
  * Something went wrong when trying to send an email.<p>
@@ -26,14 +28,21 @@ public class EmailSendingException extends Exception {
      * exception, which could indicate a temporary network failure.
      */
     public boolean isRetryable() {
+        Throwable rootCause = getRootCause();
+        return rootCause instanceof SocketTimeoutException || rootCause instanceof SocketException;
+    }
+
+    /**
+     * Returns the innermost exception, which usually startet the problem.[
+     */
+    public Throwable getRootCause() {
+        Throwable rootCause = this;
         Throwable cause = getCause();
-        while (cause != null) {
-            // FIXME(hps,01.09.20) UnknownHostException raus
-            if (cause instanceof SocketTimeoutException || cause instanceof java.net.UnknownHostException) {
-                return true;
-            }
+        while (cause != null && cause != cause.getCause()) {
+            rootCause = cause;
             cause = cause.getCause();
         }
-        return false;
+        return rootCause;
     }
+
 }

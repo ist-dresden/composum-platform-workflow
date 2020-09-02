@@ -24,10 +24,12 @@ import org.mockito.Spy;
 import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
 import javax.mail.PasswordAuthentication;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.Map;
 import java.util.concurrent.*;
 
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -82,7 +84,7 @@ public class EmailServiceImplTest {
         when(serverConfigResource.getValueMap()).thenReturn(
                 new ValueMapDecorator(Map.of(
                         "enabled", true,
-                        "type", "STARTTLS",
+                        "connectionType", "STARTTLS",
                         "host", "smtp.sendgrid.net",
                         "port", 587,
                         "credentialId", "/some/thing"
@@ -91,7 +93,7 @@ public class EmailServiceImplTest {
         when(invalidServerConfigResource.getValueMap()).thenReturn(
                 new ValueMapDecorator(Map.of(
                         "enabled", true,
-                        "type", "STARTTLS",
+                        "connectionType", "STARTTLS",
                         "host", "192.0.2.1", // invalid IP
                         "port", 587,
                         "credentialId", "/some/thing"
@@ -134,14 +136,27 @@ public class EmailServiceImplTest {
         service.sendMail(email, serverConfigResource);
     }
 
-    @Test(expected = ExecutionException.class, timeout = 2000)
+    @Test(timeout = 2000)
     public void noConnection() throws Throwable {
         EmailBuilder email = new EmailBuilder(beanContext, null);
         email.setFrom("something@example.net");
         email.setSubject("TestMail");
         email.setBody("This is a test impl ... :-)");
         email.setTo("somethingelse@example.net");
-        service.sendMail(email, invalidServerConfigResource).get(3000, TimeUnit.MILLISECONDS);
+        Throwable exception = null;
+        try {
+            service.sendMail(email, invalidServerConfigResource).get(3000, TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            exception = e.getCause();
+        } catch (EmailSendingException e) {
+            exception = e;
+        }
+        ec.checkThat(exception, instanceOf(EmailSendingException.class));
+        if (exception instanceof EmailSendingException) {
+            EmailSendingException e = (EmailSendingException) exception;
+            Throwable cause = e.getRootCause();
+            ec.checkThat(cause.getClass().getName(), cause, anyOf(instanceOf(SocketException.class), instanceOf(SocketTimeoutException.class)));
+        }
     }
 
     @Test(timeout = 12000)
@@ -161,7 +176,7 @@ public class EmailServiceImplTest {
         } catch (ExecutionException e) {
             ec.checkThat(e.getCause().getMessage(), is("Giving up after 3 retries."));
             long time = System.currentTimeMillis() - begin;
-            ec.checkThat("" + time, time >= 6000, is(true));
+            ec.checkThat("" + time, time >= 4000, is(true));
             ec.checkThat("" + time, time < 10000, is(true));
             ec.checkThat(future.isDone(), is(true));
         }

@@ -162,6 +162,7 @@ public class EmailServiceImpl implements EmailService {
         if (serverConfig == null) {
             throw new IllegalArgumentException("No email server configuration given");
         }
+        email.setDebug(config.debugInteractions());
         if (config.connectionTimeout() != 0) {
             email.setSocketConnectionTimeout(config.connectionTimeout());
         }
@@ -174,14 +175,16 @@ public class EmailServiceImpl implements EmailService {
         }
         email.setHostName(serverConfig.getHost());
         String connectionType = serverConfig.getConnectionType();
-        if (VALUE_SMTP.equals(connectionType)) {
+        if (VALUE_SMTP.equalsIgnoreCase(connectionType)) {
             email.setSmtpPort(serverConfig.getPort());
-        } else if (VALUE_STARTTLS.equals(connectionType)) {
+        } else if (VALUE_STARTTLS.equalsIgnoreCase(connectionType)) {
             email.setSmtpPort(serverConfig.getPort());
             email.setStartTLSRequired(true);
-        } else if (VALUE_SMTPS.equals(connectionType)) {
+        } else if (VALUE_SMTPS.equalsIgnoreCase(connectionType)) {
             email.setSslSmtpPort(String.valueOf(serverConfig.getPort()));
             email.setSSLOnConnect(true);
+        } else {
+            LOG.warn("Unknown connection type {} at {}", connectionType, serverConfig.getPath());
         }
         if (authenticator != null) {
             email.setAuthenticator(authenticator);
@@ -271,6 +274,10 @@ public class EmailServiceImpl implements EmailService {
         @AttributeDefinition(name = "1st retry", required = true, description =
                 "Time in seconds after which the first retry for retryable failures is started.")
         int retryTime() default 300;
+
+        @AttributeDefinition(name = "Debug", required = true, description =
+                "If set to true, interactions with the email relay are printed to stdout.")
+        boolean debugInteractions() default false;
 
     }
 
