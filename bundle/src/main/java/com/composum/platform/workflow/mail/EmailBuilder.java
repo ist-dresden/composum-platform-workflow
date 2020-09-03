@@ -179,8 +179,8 @@ public class EmailBuilder {
         return this;
     }
 
-    public EmailBuilder addPlaceholders(@Nonnull Map<String, Object> placeholders) {
-        placeholders.putAll(placeholders);
+    public EmailBuilder addPlaceholders(@Nonnull Map<String, Object> values) {
+        placeholders.putAll(values);
         return this;
     }
 
