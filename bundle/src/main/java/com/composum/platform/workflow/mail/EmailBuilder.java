@@ -44,9 +44,12 @@ public class EmailBuilder {
     public static final String PROP_BCC = "bcc";
     public static final String PROP_REPLYTO = "replyTo";
     public static final String PROP_BOUNCE_ADDRESS = "bounceAddress";
+    /**
+     * Optional body of the email; at least one of {@link #PROP_BODY} and {@link #PROP_HTML} has to be given.
+     */
     public static final String PROP_BODY = "body";
     /**
-     * Optional HTML body for the mail.
+     * Optional HTML body for the mail; at least one of {@link #PROP_BODY} and {@link #PROP_HTML} has to be given.
      */
     public static final String PROP_HTML = "html";
 

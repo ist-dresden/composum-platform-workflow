@@ -8,7 +8,7 @@
           jcr:description="Data for email relay server for testing (hps slingtest) at https://www.sendgrid.com/."
           jcr:title="email test relay"
           connectionType="STARTTLS"
-          credentialId="/composum/platform/workflow/test/mail/sendgridcredentials"
+          credentialId="composum/platform/workflow/test/mail/sendgridcredentials"
           enabled="{Boolean}true"
           host="smtp.sendgrid.net"
           port="587">

@@ -28,6 +28,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
+import javax.mail.MessagingException;
+import javax.mail.Session;
+import javax.mail.internet.MimeMessage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.concurrent.*;
 
 import static com.composum.platform.workflow.mail.EmailServerConfigModel.*;
@@ -78,28 +85,18 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
-    protected Email prepareEmail(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfigResource, String loggingId) throws EmailSendingException {
-        EmailServerConfigModel serverConfig = new EmailServerConfigModel();
-        serverConfig.initialize(new BeanContext.Service(serverConfigResource.getResourceResolver()), serverConfigResource);
-        Email email = emailBuilder.buildEmail(placeholderService);
-        try {
-            Authenticator authenticator =
-                    StringUtils.isNotBlank(serverConfig.getCredentialId()) ?
-                            credentialService.getMailAuthenticator(serverConfig.getCredentialId(), serverConfigResource.getResourceResolver()) : null;
-            initFromServerConfig(email, serverConfig, authenticator, loggingId);
-            email.buildMimeMessage();
-        } catch (RepositoryException | EmailException e) { // acl failure or failure building the message
-            throw new EmailSendingException(e);
-        }
-        return email;
-    }
-
     @Nonnull
     @Override
     public Future<String> sendMail(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
         verifyEnabled();
         String loggingId = makeLoggingId(emailBuilder, serverConfig);
-        Email email = prepareEmail(emailBuilder, serverConfig, loggingId);
+        Email email = emailBuilder.buildEmail(placeholderService);
+        initializeEmailWithServerConfig(email, serverConfig, loggingId);
+        try {
+            email.buildMimeMessage();
+        } catch (EmailException e) {
+            throw new EmailSendingException(e);
+        }
         if (LOG.isDebugEnabled()) {
             LOG.debug("Queueing {} : {}", loggingId, emailBuilder.toString());
         }
@@ -140,7 +137,13 @@ public class EmailServiceImpl implements EmailService {
     public String sendMailImmediately(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
         verifyEnabled();
         String loggingId = makeLoggingId(emailBuilder, serverConfig);
-        Email email = prepareEmail(emailBuilder, serverConfig, loggingId);
+        Email email = emailBuilder.buildEmail(placeholderService);
+        initializeEmailWithServerConfig(email, serverConfig, loggingId);
+        try {
+            email.buildMimeMessage();
+        } catch (EmailException e) {
+            throw new EmailSendingException(e);
+        }
         if (LOG.isDebugEnabled()) {
             LOG.debug("Sending with {} : {}", loggingId, emailBuilder.toString());
         }
@@ -157,8 +160,20 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
-    protected void initFromServerConfig(@Nonnull Email email, @Nonnull EmailServerConfigModel serverConfig, Authenticator authenticator, String loggingId) throws EmailSendingException {
+    /**
+     * Initializes the email session within the email with server configuration.
+     */
+    protected void initializeEmailWithServerConfig(@Nonnull Email email, @Nonnull Resource serverConfigResource, String loggingId) throws EmailSendingException {
         verifyEnabled();
+        EmailServerConfigModel serverConfig = new EmailServerConfigModel();
+        serverConfig.initialize(new BeanContext.Service(serverConfigResource.getResourceResolver()), serverConfigResource);
+        Authenticator authenticator;
+        try {
+            authenticator = StringUtils.isNotBlank(serverConfig.getCredentialId()) ?
+                    credentialService.getMailAuthenticator(serverConfig.getCredentialId(), serverConfigResource.getResourceResolver()) : null;
+        } catch (RepositoryException e) { // acl failure
+            throw new EmailSendingException(e);
+        }
         if (serverConfig == null) {
             throw new IllegalArgumentException("No email server configuration given");
         }
@@ -196,6 +211,31 @@ public class EmailServiceImpl implements EmailService {
         if (!isEnabled()) {
             throw new EmailSendingException("Email service is not enabled.");
         }
+    }
+
+    protected InputStream serialize(Email email, String loggingId) throws EmailSendingException {
+        try {
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            MimeMessage mimeMessage = email.getMimeMessage();
+            if (mimeMessage == null) {
+                email.buildMimeMessage();
+                mimeMessage = email.getMimeMessage();
+            }
+            mimeMessage.writeTo(bos);
+            return new ByteArrayInputStream(bos.toByteArray());
+        } catch (EmailException | IOException | MessagingException e) {
+            LOG.error("Could not serialize email {}", loggingId, e);
+            throw new EmailSendingException(e);
+        }
+    }
+
+    protected MimeMessage deserialize(InputStream inputStream, Resource serverConfigResource, String loggingId)
+            throws EmailSendingException, MessagingException, EmailException {
+        SimpleEmail emailForSession = new SimpleEmail();
+        initializeEmailWithServerConfig(emailForSession, serverConfigResource, loggingId);
+        Session mailSession = emailForSession.getMailSession();
+        MimeMessage mimeMessage = new MimeMessage(mailSession, inputStream);
+        return mimeMessage;
     }
 
     @Override
