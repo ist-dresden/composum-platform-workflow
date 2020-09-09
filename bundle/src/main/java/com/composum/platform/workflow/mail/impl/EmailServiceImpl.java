@@ -30,6 +30,7 @@ import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
 import javax.mail.MessagingException;
 import javax.mail.Session;
+import javax.mail.Transport;
 import javax.mail.internet.MimeMessage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -42,11 +43,17 @@ import static com.composum.platform.workflow.mail.EmailServerConfigModel.*;
 /**
  * Implementation of {@link EmailService} using Simple Java Mail.
  */
-@Component(property = {
-        Constants.SERVICE_DESCRIPTION + "=Composum Workflow Email Service"
-})
+@Component(
+        service = {EmailService.class, Runnable.class},
+        property = {
+                Constants.SERVICE_DESCRIPTION + "=Composum Workflow Email Service",
+                "scheduler.period=5",
+                "scheduler.concurrent=false",
+                "scheduler.threadPool=" + EmailServiceImpl.THREADPOOL_NAME
+        })
+// FIXME(hps,09.09.20) Reduce call frequency!
 @Designate(ocd = EmailServiceImpl.Config.class)
-public class EmailServiceImpl implements EmailService {
+public class EmailServiceImpl implements EmailService, Runnable {
 
     /**
      * Path for server configurations, mail templates, etc. This is not enforced, just a suggestion.
@@ -100,7 +107,7 @@ public class EmailServiceImpl implements EmailService {
         if (LOG.isDebugEnabled()) {
             LOG.debug("Queueing {} : {}", loggingId, emailBuilder.toString());
         }
-        EmailTask task = new EmailTask(email, loggingId);
+        EmailTask task = new EmailTask(email, serverConfig.getPath(), loggingId);
         task.currentTry = scheduledExecutorService.submit(task::trySending);
         Future<String> future = task.resultFuture;
         try { // That might throw up on immediate errors with the email in some cases, but doesn't hold us up much.
@@ -147,15 +154,16 @@ public class EmailServiceImpl implements EmailService {
         if (LOG.isDebugEnabled()) {
             LOG.debug("Sending with {} : {}", loggingId, emailBuilder.toString());
         }
-        return sendEmail(email, loggingId);
+        return sendEmail(email.getMimeMessage(), loggingId);
     }
 
-    protected String sendEmail(Email email, String loggingId) throws EmailSendingException {
+    protected String sendEmail(MimeMessage message, String loggingId) throws EmailSendingException {
         try {
-            String messageId = email.sendMimeMessage();
+            Transport.send(message);
+            String messageId = message.getMessageID();
             LOG.info("Sent email {} : {}", loggingId, messageId);
             return messageId;
-        } catch (EmailException | RuntimeException e) {
+        } catch (RuntimeException | MessagingException e) {
             throw new EmailSendingException(e);
         }
     }
@@ -287,6 +295,14 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    /**
+     * Checks whether there are more emails to run.
+     */
+    @Override
+    public void run() {
+        LOG.debug("Cron called.");
+    }
+
     @ObjectClassDefinition(
             name = "Composum Workflow Email Service"
     )
@@ -326,7 +342,7 @@ public class EmailServiceImpl implements EmailService {
      */
     protected class EmailTask {
 
-        protected final Email email;
+        protected final MimeMessage mimeMessage;
         protected final CompletableFuture<String> resultFuture = new CompletableFuture<>() {
             @Override
             public boolean cancel(boolean mayInterruptIfRunning) {
@@ -336,6 +352,7 @@ public class EmailServiceImpl implements EmailService {
                 return super.cancel(mayInterruptIfRunning);
             }
         };
+        protected final String serverConfigPath;
         protected volatile int retry = 0;
         protected volatile Future<?> currentTry;
         /**
@@ -343,15 +360,25 @@ public class EmailServiceImpl implements EmailService {
          */
         protected final String loggingId;
 
-        public EmailTask(Email email, String loggingId) {
-            this.email = email;
+        public EmailTask(@Nonnull Email email, @Nonnull String serverConfigPath, @Nonnull String loggingId) throws EmailSendingException {
             this.loggingId = loggingId;
+            this.serverConfigPath = serverConfigPath;
+            MimeMessage msg = email.getMimeMessage();
+            if (msg == null) {
+                try {
+                    email.buildMimeMessage();
+                } catch (EmailException e) {
+                    throw new EmailSendingException(e);
+                }
+                msg = email.getMimeMessage();
+            }
+            mimeMessage = msg;
         }
 
         public void trySending() {
             retry = retry + 1;
             try {
-                String messageId = sendEmail(email, loggingId);
+                String messageId = sendEmail(mimeMessage, loggingId);
                 resultFuture.complete(messageId);
             } catch (EmailSendingException e) {
                 Config conf = config;
