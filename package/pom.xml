@@ -118,6 +118,7 @@
                             <includes>
                                 <include>.*/composum-platform-workflow-bundle.*\.jar</include>
                                 <include>.*/org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended-workflow.config</include>
+                                <include>.*/org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended-workflow-renderer.config</include>
                                 <include>.*/commons-email.*\.jar</include>
                             </includes>
                         </filter>
