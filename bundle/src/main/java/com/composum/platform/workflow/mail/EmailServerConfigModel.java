@@ -7,6 +7,8 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ValueMap;
 
+import javax.annotation.Nonnull;
+
 /**
  * Model that reads the email server configuration data from a resource.
  */
@@ -51,8 +53,16 @@ public class EmailServerConfigModel extends AbstractLoadedSlingBean {
     protected String connectionType;
     protected String credentialId;
 
+    public EmailServerConfigModel() {
+        // empty - initialization is later with initialize
+    }
+
+    public EmailServerConfigModel(@Nonnull Resource resource) {
+        initialize(new BeanContext.Service(resource.getResourceResolver()), resource);
+    }
+
     @Override
-    public void initialize(BeanContext beanContext, Resource resource) {
+    public void initialize(BeanContext beanContext, @Nonnull Resource resource) {
         super.initialize(beanContext, resource);
         ValueMap vm = resource.getValueMap();
         enabled = vm.get(PROP_SERVER_ENABLED, Boolean.class);

@@ -265,5 +265,36 @@
         ]
       }
     ]
+  },
+  {
+    "path": "/var/composum/platform/mail",
+    "acl": [
+      {
+        "principal": "composum-platform-workflow-service",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:read",
+            "restrictions": {
+              "rep:glob": ""
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "path": "/var/composum/platform/mail/queue",
+    "acl": [
+      {
+        "principal": "composum-platform-workflow-service",
+        "acl": [
+          {
+            "allow": true,
+            "privileges": "jcr:all"
+          }
+        ]
+      }
+    ]
   }
 ]

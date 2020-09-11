@@ -2,7 +2,6 @@ package com.composum.platform.workflow.mail;
 
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
 
 /**
  * Something went wrong when trying to send an email.<p>

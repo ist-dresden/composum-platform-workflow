@@ -6,12 +6,16 @@ import com.composum.platform.commons.credentials.CredentialService;
 import com.composum.platform.workflow.mail.EmailBuilder;
 import com.composum.platform.workflow.mail.EmailSendingException;
 import com.composum.sling.core.BeanContext;
+import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.platform.testing.testutil.ErrorCollectorAlwaysPrintingFailures;
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.wrappers.ValueMapDecorator;
+import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.threads.ThreadPool;
 import org.apache.sling.commons.threads.ThreadPoolConfig;
 import org.apache.sling.commons.threads.ThreadPoolManager;
+import org.apache.sling.testing.mock.sling.ResourceResolverType;
+import org.apache.sling.testing.mock.sling.junit.SlingContext;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -26,7 +30,6 @@ import javax.mail.Authenticator;
 import javax.mail.PasswordAuthentication;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
-import java.util.Map;
 import java.util.concurrent.*;
 
 import static org.hamcrest.Matchers.*;
@@ -41,14 +44,21 @@ import static org.mockito.Mockito.when;
  */
 public class EmailServiceImplTest {
 
+    protected static final String PATH_SERVERCFG = "/some/servercfg";
+    protected static final String PATH_INVALIDSERVERCFG = "/some/invalidserver";
+
     @Rule
     public final ErrorCollectorAlwaysPrintingFailures ec = new ErrorCollectorAlwaysPrintingFailures();
 
-    @Mock
+    @Rule
+    public final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
+
     protected Resource serverConfigResource;
 
-    @Mock
     protected Resource invalidServerConfigResource;
+
+    @Mock
+    protected ResourceResolverFactory resourceResolverFactory;
 
     @Mock
     protected CredentialService credentialService;
@@ -71,7 +81,7 @@ public class EmailServiceImplTest {
     protected BeanContext beanContext = new BeanContext.Map();
 
     @Before
-    public void setUp() throws RepositoryException {
+    public void setUp() throws RepositoryException, LoginException {
         MockitoAnnotations.initMocks(this);
         when(credentialService.getMailAuthenticator(anyString(), any())).thenReturn(
                 new Authenticator() {
@@ -81,23 +91,20 @@ public class EmailServiceImplTest {
                     }
                 }
         );
-        when(serverConfigResource.getValueMap()).thenReturn(
-                new ValueMapDecorator(Map.of(
-                        "enabled", true,
-                        "connectionType", "STARTTLS",
-                        "host", "smtp.sendgrid.net",
-                        "port", 587,
-                        "credentialId", "/some/thing"
-                ))
-        );
-        when(invalidServerConfigResource.getValueMap()).thenReturn(
-                new ValueMapDecorator(Map.of(
-                        "enabled", true,
-                        "connectionType", "STARTTLS",
-                        "host", "192.0.2.1", // invalid IP
-                        "port", 587,
-                        "credentialId", "/some/thing"
-                ))
+        serverConfigResource = context.build().resource(PATH_SERVERCFG, ResourceUtil.PROP_PRIMARY_TYPE, ResourceUtil.TYPE_UNSTRUCTURED,
+                "enabled", true,
+                "connectionType", "STARTTLS",
+                "host", "smtp.sendgrid.net",
+                "port", 587,
+                "credentialId", "/some/thing").commit().getCurrentParent();
+        invalidServerConfigResource = context.build().resource(PATH_INVALIDSERVERCFG, ResourceUtil.PROP_PRIMARY_TYPE, ResourceUtil.TYPE_UNSTRUCTURED,
+                "enabled", true,
+                "connectionType", "STARTTLS",
+                "host", "192.0.2.1", // invalid IP
+                "port", 587,
+                "credentialId", "/some/thing").commit().getCurrentParent();
+        when(resourceResolverFactory.getServiceResourceResolver(any())).then((args) ->
+                context.resourceResolver().clone(null)
         );
         when(config.enabled()).thenReturn(true);
         when(config.connectionTimeout()).thenReturn(1000);
