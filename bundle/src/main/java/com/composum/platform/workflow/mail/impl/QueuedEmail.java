@@ -2,9 +2,9 @@ package com.composum.platform.workflow.mail.impl;
 
 import com.composum.platform.workflow.mail.EmailSendingException;
 import com.composum.sling.core.util.ResourceUtil;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.mail.Email;
 import org.apache.commons.mail.EmailException;
-import org.apache.commons.mail.SimpleEmail;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -45,7 +45,7 @@ class QueuedEmail {
 
     protected String path;
     protected final String loggingId;
-    protected final MimeMessage mimeMessage;
+    protected final byte[] messageBytes;
     protected final String serverConfigPath;
     protected final String credentialToken;
     protected final Long modified;
@@ -60,7 +60,11 @@ class QueuedEmail {
         path = resource.getPath();
         ValueMap vm = resource.getValueMap();
         loggingId = vm.get(PROP_LOGGINGID, String.class);
-        mimeMessage = deserializeEmail(vm.get(PROP_EMAIL, InputStream.class));
+        try (InputStream mimeStream = vm.get(PROP_EMAIL, InputStream.class)) {
+            messageBytes = IOUtils.toByteArray(mimeStream);
+        } catch (IOException ioException) {
+            throw new EmailSendingException("Error reading message for " + loggingId, ioException);
+        }
         serverConfigPath = vm.get(PROP_SERVERCONFIG, String.class);
         credentialToken = vm.get(PROP_CREDENTIALKEY, String.class);
         queuedAt = vm.get(PROP_QUEUED_AT, String.class);
@@ -82,18 +86,21 @@ class QueuedEmail {
             }
             msg = email.getMimeMessage();
         }
-        mimeMessage = msg;
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        try {
+            msg.writeTo(bo);
+        } catch (IOException | MessagingException e) {
+            throw new EmailSendingException("Error writing message " + loggingId, e);
+        }
+        messageBytes = bo.toByteArray();
         this.modified = null;
     }
 
-    protected MimeMessage deserializeEmail(@Nonnull InputStream inputStream) throws EmailSendingException {
-        SimpleEmail emailForSession = new SimpleEmail();
-        emailForSession.setHostName("192.0.2.1"); // invalid IP, not actually used
+    protected MimeMessage deserializeEmail(@Nonnull InputStream inputStream, @Nonnull Session mailSession) throws EmailSendingException {
         try {
-            Session mailSession = emailForSession.getMailSession();
             MimeMessage mimeMessage = new MimeMessage(mailSession, inputStream);
             return mimeMessage;
-        } catch (MessagingException | EmailException e) {
+        } catch (MessagingException e) {
             LOG.warn("Trouble deserializing email {}", path, e);
             throw new EmailSendingException(e);
         }
@@ -107,12 +114,12 @@ class QueuedEmail {
             put(vm, PROP_LOGGINGID, loggingId);
             put(vm, PROP_SERVERCONFIG, serverConfigPath);
             put(vm, PROP_CREDENTIALKEY, credentialToken);
-            put(vm, PROP_EMAIL, serializeEmail());
+            put(vm, PROP_EMAIL, new ByteArrayInputStream(messageBytes));
             put(vm, PROP_RETRY, retry);
             put(vm, PROP_NEXTTRY, nextTry);
             put(vm, ResourceUtil.JCR_LASTMODIFIED, System.currentTimeMillis());
             put(vm, PROP_QUEUED_AT, queuedAt);
-        } catch (EmailSendingException | RepositoryException e) {
+        } catch (RepositoryException e) {
             LOG.error("Could not write to {}", path, e);
             throw new EmailSendingException(e);
         }
@@ -126,23 +133,12 @@ class QueuedEmail {
         }
     }
 
-    protected InputStream serializeEmail() throws EmailSendingException {
-        try {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            mimeMessage.writeTo(bos);
-            return new ByteArrayInputStream(bos.toByteArray());
-        } catch (IOException | MessagingException e) {
-            LOG.error("Could not serialize email {}", loggingId, e);
-            throw new EmailSendingException(e);
-        }
-    }
-
     public String getLoggingId() {
         return loggingId;
     }
 
-    public MimeMessage getMimeMessage() {
-        return mimeMessage;
+    public MimeMessage getMimeMessage(@Nonnull Session session) throws EmailSendingException {
+        return deserializeEmail(new ByteArrayInputStream(messageBytes), session);
     }
 
     public String getServerConfigPath() {

@@ -268,16 +268,14 @@
   },
   {
     "path": "/var/composum/platform/mail",
+    "jcr:primaryType": "sling:Folder",
     "acl": [
       {
         "principal": "composum-platform-workflow-service",
         "acl": [
           {
             "allow": true,
-            "privileges": "jcr:read",
-            "restrictions": {
-              "rep:glob": ""
-            }
+            "privileges": "jcr:read"
           }
         ]
       }
@@ -285,7 +283,12 @@
   },
   {
     "path": "/var/composum/platform/mail/queue",
+    "jcr:primaryType": "sling:Folder",
     "acl": [
+      {
+        "allow": false,
+        "privileges": "jcr:all"
+      },
       {
         "principal": "composum-platform-workflow-service",
         "acl": [

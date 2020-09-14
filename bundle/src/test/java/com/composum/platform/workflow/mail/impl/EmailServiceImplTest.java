@@ -8,22 +8,21 @@ import com.composum.platform.workflow.mail.EmailSendingException;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.platform.testing.testutil.ErrorCollectorAlwaysPrintingFailures;
+import com.composum.sling.platform.testing.testutil.JcrTestUtils;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.threads.ThreadPool;
 import org.apache.sling.commons.threads.ThreadPoolConfig;
 import org.apache.sling.commons.threads.ThreadPoolManager;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit.SlingContext;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.mockito.Spy;
+import org.jetbrains.annotations.Nullable;
+import org.junit.*;
+import org.mockito.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
@@ -34,8 +33,7 @@ import java.util.concurrent.*;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.fail;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
@@ -44,11 +42,13 @@ import static org.mockito.Mockito.when;
  */
 public class EmailServiceImplTest {
 
-    protected static final String PATH_SERVERCFG = "/some/servercfg";
-    protected static final String PATH_INVALIDSERVERCFG = "/some/invalidserver";
+    private static final Logger LOG = LoggerFactory.getLogger(EmailServiceImplTest.class);
+
+    protected static final String PATH_SERVERCFG = "/conf/some/servercfg";
+    protected static final String PATH_INVALIDSERVERCFG = "/conf/some/invalidserver";
 
     @Rule
-    public final ErrorCollectorAlwaysPrintingFailures ec = new ErrorCollectorAlwaysPrintingFailures();
+    public final ErrorCollectorAlwaysPrintingFailures ec = new ErrorCollectorAlwaysPrintingFailures().onFailure(this::printJcr);
 
     @Rule
     public final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
@@ -103,9 +103,13 @@ public class EmailServiceImplTest {
                 "host", "192.0.2.1", // invalid IP
                 "port", 587,
                 "credentialId", "/some/thing").commit().getCurrentParent();
-        when(resourceResolverFactory.getServiceResourceResolver(any())).then((args) ->
-                context.resourceResolver().clone(null)
-        );
+
+        // the service resolver is closed after each use. Since it seems difficult to create another resolver,
+        // we just prevent the closing.
+        ResourceResolver serviceResolver = Mockito.spy(context.resourceResolver());
+        Mockito.doNothing().when(serviceResolver).close();
+        when(resourceResolverFactory.getServiceResourceResolver(any())).thenReturn(serviceResolver);
+
         when(config.enabled()).thenReturn(true);
         when(config.connectionTimeout()).thenReturn(1000);
         when(config.socketTimeout()).thenReturn(1000);
@@ -115,10 +119,24 @@ public class EmailServiceImplTest {
             return null;
         }).when(threadPoolManager).release(threadPool);
         service.activate(config);
+        LOG.info("Current time: {}", System.currentTimeMillis());
+    }
+
+    protected void printJcr() {
+        try {
+            Thread.sleep(500); // wait for logging messages to be written
+            System.out.flush();
+            System.err.flush();
+        } catch (InterruptedException e) { // haha.
+            throw new RuntimeException(e);
+        }
+        JcrTestUtils.printResourceRecursivelyAsJson(context.resourceResolver().getResource("/conf"));
+        JcrTestUtils.printResourceRecursivelyAsJson(context.resourceResolver().getResource("/var"));
     }
 
     @After
     public void tearDown() {
+        printJcr(); // FIXME(hps,11.09.20) remove
         service.deactivate();
         if (!threadPool.isShutdown()) {
             threadPool.shutdownNow();
@@ -133,6 +151,7 @@ public class EmailServiceImplTest {
         return "somepassword";
     }
 
+    @Ignore // FIXME(hps,11.09.20) remove
     @Test(expected = EmailSendingException.class, timeout = 100)
     public void sendInvalidMail() throws EmailSendingException {
         EmailBuilder email = new EmailBuilder(beanContext, null);
@@ -143,7 +162,7 @@ public class EmailServiceImplTest {
         service.sendMail(email, serverConfigResource);
     }
 
-    @Test(timeout = 2000)
+    @Test // (timeout = 2000)
     public void noConnection() throws Throwable {
         EmailBuilder email = new EmailBuilder(beanContext, null);
         email.setFrom("something@example.net");
@@ -152,21 +171,27 @@ public class EmailServiceImplTest {
         email.setTo("somethingelse@example.net");
         Throwable exception = null;
         try {
-            service.sendMail(email, invalidServerConfigResource).get(3000, TimeUnit.MILLISECONDS);
+            Future<String> future = service.sendMail(email, invalidServerConfigResource);
+            future.get(3000, TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
             exception = e.getCause();
         } catch (EmailSendingException e) {
+            LOG.info("Expected EmailSendingException; now checking cause.", e);
             exception = e;
         }
         ec.checkThat(exception, instanceOf(EmailSendingException.class));
         if (exception instanceof EmailSendingException) {
             EmailSendingException e = (EmailSendingException) exception;
             Throwable cause = e.getRootCause();
-            ec.checkThat(cause.getClass().getName(), cause, anyOf(instanceOf(SocketException.class), instanceOf(SocketTimeoutException.class)));
+            boolean ok = (cause instanceof SocketException) || (cause instanceof SocketTimeoutException);
+            if (!ok) {
+                throw exception;
+            }
         }
     }
 
-    @Test(timeout = 12000)
+    @Ignore // FIXME(hps,11.09.20) remove
+    @Test // (timeout = 12000)
     public void retries() throws Throwable {
         EmailBuilder email = new EmailBuilder(beanContext, null);
         email.setFrom("something@example.net");
@@ -191,6 +216,7 @@ public class EmailServiceImplTest {
 
     // FIXME(hps,01.09.20) sinnvolles logging im EmailService
 
+    @Ignore // FIXME(hps,11.09.20) remove
     @Test
     public void isValid() {
         ec.checkThat(service.isValid("bla@blu.example.net"), is(true));

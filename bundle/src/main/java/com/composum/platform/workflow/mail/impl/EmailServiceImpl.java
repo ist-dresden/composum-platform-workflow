@@ -27,9 +27,11 @@ import javax.annotation.Nullable;
 import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
 import javax.mail.MessagingException;
+import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.MimeMessage;
 import java.security.SecureRandom;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.*;
 
@@ -254,8 +256,8 @@ public class EmailServiceImpl implements EmailService, Runnable {
 
     @Activate
     @Modified
-    protected void activate(Config theConfig) {
-        this.config = theConfig;
+    protected void activate(@Nonnull Config theConfig) {
+        this.config = Objects.requireNonNull(theConfig); // FIXME(hps,11.09.20) wrong
         if (isEnabled()) {
             if (executorService == null) {
                 this.executorService = new SlingThreadPoolExecutorService(threadPoolManager, THREADPOOL_NAME);
@@ -376,6 +378,10 @@ public class EmailServiceImpl implements EmailService, Runnable {
             queuedEmail.setQueuedAt(serviceId);
             try (ResourceResolver serviceResolver = getServiceResolver()) {
                 queuedEmail.save(serviceResolver, queuedEmailPath);
+                serviceResolver.commit();
+            } catch (PersistenceException e) {
+                LOG.error("Could not persist queued email at {}", queuedEmailPath, e);
+                throw new EmailSendingException("Could not persist queued email", e);
             }
         }
 
@@ -396,8 +402,17 @@ public class EmailServiceImpl implements EmailService, Runnable {
                         queuedEmail.save(serviceResolver, queuedEmailPath);
                         serviceResolver.commit();
 
+                        Email emailForSession = new SimpleEmail();
+                        Resource serverConfigResource = serviceResolver.getResource(queuedEmail.getServerConfigPath());
+                        if (serverConfigResource == null) {
+                            LOG.error("Service resolver could not read server config {} for {}", queuedEmail.getServerConfigPath(), queuedEmail.getLoggingId());
+                            throw new EmailSendingException("Service resolver could not read server configuration");
+                        }
+                        initializeEmailWithServerConfig(emailForSession, serverConfigResource, queuedEmail.getLoggingId(), queuedEmail.getCredentialToken());
+                        Session session = emailForSession.getMailSession();
+
                         LOG.info("Processing {} retry {}, next retry delay {}", queuedEmail.getRetry() - 1, loggingId, delay);
-                        String messageId = sendEmail(queuedEmail.mimeMessage, loggingId);
+                        String messageId = sendEmail(queuedEmail.getMimeMessage(session), loggingId);
 
                         removeQueuedEmail(serviceResolver);
                         resultFuture.complete(messageId);
@@ -408,12 +423,16 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 } catch (PersistenceException e) {
                     LOG.error("Bug: trouble changing queued email {}", loggingId, e);
                     throw new EmailSendingException("Bug: trouble changing queued email.");
+                } catch (EmailException e) {
+                    String logid = queuedEmail != null ? queuedEmail.getLoggingId() : queuedEmailPath;
+                    throw new EmailSendingException("Exception sending " + logid, e);
                 }
             } catch (EmailSendingException e) {
                 Config conf = config;
                 if (conf.enabled() && e.isRetryable()) {
                     // FIXME(hps,11.09.20) IMPLEMENT RETRY
                     removeQueuedEmail(null);
+                    resultFuture.completeExceptionally(e);
                     LOG.info("Try {} failed for {}", queuedEmail.getRetry(), loggingId, e);
 //                    if (conf.retries() > retry) {
 //                        try {
@@ -431,6 +450,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
                     resultFuture.completeExceptionally(e);
                 }
             } catch (RuntimeException | Error e) {
+                LOG.warn("Unexpected exception", e);
                 resultFuture.completeExceptionally(e);
             }
         }
