@@ -7,8 +7,12 @@ import com.composum.platform.workflow.mail.EmailBuilder;
 import com.composum.platform.workflow.mail.EmailSendingException;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.util.ResourceUtil;
+import com.composum.sling.platform.staging.query.Query;
+import com.composum.sling.platform.staging.query.QueryBuilder;
+import com.composum.sling.platform.staging.query.impl.QueryBuilderAdapterFactory;
 import com.composum.sling.platform.testing.testutil.ErrorCollectorAlwaysPrintingFailures;
 import com.composum.sling.platform.testing.testutil.JcrTestUtils;
+import com.google.common.base.Function;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -18,7 +22,6 @@ import org.apache.sling.commons.threads.ThreadPoolConfig;
 import org.apache.sling.commons.threads.ThreadPoolManager;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit.SlingContext;
-import org.jetbrains.annotations.Nullable;
 import org.junit.*;
 import org.mockito.*;
 import org.slf4j.Logger;
@@ -29,11 +32,15 @@ import javax.mail.Authenticator;
 import javax.mail.PasswordAuthentication;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
 import java.util.concurrent.*;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.fail;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
@@ -119,7 +126,13 @@ public class EmailServiceImplTest {
             return null;
         }).when(threadPoolManager).release(threadPool);
         service.activate(config);
+
+        context.registerAdapter(ResourceResolver.class, QueryBuilder.class,
+                (Function) (resolver) ->
+                        new QueryBuilderAdapterFactory().getAdapter(resolver, QueryBuilder.class));
+
         LOG.info("Current time: {}", System.currentTimeMillis());
+
     }
 
     protected void printJcr() {
@@ -151,7 +164,6 @@ public class EmailServiceImplTest {
         return "somepassword";
     }
 
-    @Ignore // FIXME(hps,11.09.20) remove
     @Test(expected = EmailSendingException.class, timeout = 100)
     public void sendInvalidMail() throws EmailSendingException {
         EmailBuilder email = new EmailBuilder(beanContext, null);
@@ -202,11 +214,18 @@ public class EmailServiceImplTest {
         when(config.retryTime()).thenReturn(1);
         long begin = System.currentTimeMillis();
         Future<String> future = service.sendMail(email, invalidServerConfigResource);
+        Thread.sleep(1000);
+        service.run();
+        Thread.sleep(1000);
+        service.run();
+        Thread.sleep(1000);
+        service.run();
+        Thread.sleep(1000);
         try {
             future.get(20000, TimeUnit.MILLISECONDS);
             fail("Failure expected");
         } catch (ExecutionException e) {
-            ec.checkThat(e.getCause().getMessage(), is("Giving up after 3 retries."));
+            ec.checkThat(e.getCause().getMessage(), containsString("Giving up after 3 retries for"));
             long time = System.currentTimeMillis() - begin;
             ec.checkThat("" + time, time >= 4000, is(true));
             ec.checkThat("" + time, time < 10000, is(true));
@@ -214,15 +233,44 @@ public class EmailServiceImplTest {
         }
     }
 
-    // FIXME(hps,01.09.20) sinnvolles logging im EmailService
-
-    @Ignore // FIXME(hps,11.09.20) remove
     @Test
     public void isValid() {
         ec.checkThat(service.isValid("bla@blu.example.net"), is(true));
         ec.checkThat(service.isValid("broken"), is(false));
         ec.checkThat(service.isValid(""), is(false));
         ec.checkThat(service.isValid(null), is(false));
+    }
+
+    @Test
+    public void checkQuery() throws Exception {
+        // create an element in the mail queue
+        EmailBuilder email = new EmailBuilder(beanContext, null);
+        email.setFrom("something@example.net");
+        email.setSubject("TestMail");
+        email.setBody("This is a test impl ... :-)");
+        email.setTo("somethingelse@example.net");
+        when(config.retries()).thenReturn(3);
+        when(config.retryTime()).thenReturn(300);
+        long begin = System.currentTimeMillis();
+        Future<String> future = service.sendMail(email, invalidServerConfigResource);
+
+        ResourceResolver resolver = context.resourceResolver();
+        Query query = resolver.adaptTo(QueryBuilder.class).createQuery();
+        query.path(QueuedEmail.PATH_MAILQUEUE);
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(System.currentTimeMillis() + 1000000);
+        query.condition(
+                query.conditionBuilder().property(QueuedEmail.PROP_NEXTTRY).lt().val(calendar)
+        );
+
+        List<Resource> pendingMails = new ArrayList<>();
+        query.execute().forEach(pendingMails::add);
+        ec.checkThat(pendingMails.size(), is(1));
+
+        calendar.setTimeInMillis(System.currentTimeMillis() - 1000000);
+        pendingMails.clear();
+        query.execute().forEach(pendingMails::add);
+        ec.checkThat(pendingMails.size(), is(0));
     }
 
     protected static class TestingThreadPool extends ThreadPoolExecutor implements ThreadPool {

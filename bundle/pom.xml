@@ -73,6 +73,10 @@
             <groupId>com.composum.platform</groupId>
             <artifactId>composum-platform-testing-testutil</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-staging-bundle</artifactId>
+        </dependency>
 
         <!-- Composum Nodes (Core) -->
         <dependency>

@@ -3,6 +3,7 @@
 <%@ page import="com.composum.sling.core.BeanContext" %>
 <%@ page import="org.apache.sling.api.resource.Resource" %>
 <%@ page import="java.util.concurrent.Future" %>
+<%@ page import="java.util.concurrent.TimeUnit" %>
 <%@page session="false" pageEncoding="UTF-8" %>
 <%@taglib prefix="sling" uri="http://sling.apache.org/taglibs/sling/1.2" %>
 <%@taglib prefix="cpn" uri="http://sling.composum.com/cpnl/1.0" %>
@@ -23,4 +24,4 @@ Mailing now.
     email.addPlaceholder("S", "-SVALUE-");
     Future<String> result = service.sendMail(email, serverConfigResource);
 %>
-Sent template - the result <%= result.get() %>
+Sent template - the result <%= result.get(120000, TimeUnit.SECONDS) %>

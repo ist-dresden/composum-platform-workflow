@@ -2,6 +2,7 @@ package com.composum.platform.workflow.mail.impl;
 
 import com.composum.platform.workflow.mail.EmailSendingException;
 import com.composum.sling.core.util.ResourceUtil;
+import org.apache.commons.beanutils.converters.CalendarConverter;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.mail.Email;
 import org.apache.commons.mail.EmailException;
@@ -22,6 +23,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Calendar;
+import java.util.Date;
 
 /**
  * Model for an email that is persisted in the JCR to make it resistent to
@@ -43,7 +46,7 @@ class QueuedEmail {
     public static final String PROP_NEXTTRY = "nextTry";
     public static final String PROP_QUEUED_AT = "queuedAt";
 
-    protected String path;
+    protected final String path;
     protected final String loggingId;
     protected final byte[] messageBytes;
     protected final String serverConfigPath;
@@ -77,6 +80,7 @@ class QueuedEmail {
         this.loggingId = loggingId;
         this.serverConfigPath = serverConfigPath;
         this.credentialToken = credentialToken;
+        this.path = PATH_MAILQUEUE + "/" + loggingId;
         MimeMessage msg = email.getMimeMessage();
         if (msg == null) {
             try {
@@ -106,7 +110,7 @@ class QueuedEmail {
         }
     }
 
-    public void save(@Nonnull ResourceResolver resolver, @Nonnull String path) throws EmailSendingException {
+    public void save(@Nonnull ResourceResolver resolver) throws EmailSendingException {
         try {
             Resource resource = ResourceUtil.getOrCreateResource(resolver, path, ResourceUtil.TYPE_SLING_FOLDER + "/" + ResourceUtil.TYPE_UNSTRUCTURED);
             ModifiableValueMap vm = resource.adaptTo(ModifiableValueMap.class);
@@ -116,8 +120,10 @@ class QueuedEmail {
             put(vm, PROP_CREDENTIALKEY, credentialToken);
             put(vm, PROP_EMAIL, new ByteArrayInputStream(messageBytes));
             put(vm, PROP_RETRY, retry);
-            put(vm, PROP_NEXTTRY, nextTry);
-            put(vm, ResourceUtil.JCR_LASTMODIFIED, System.currentTimeMillis());
+            Calendar nextTryCalendar = Calendar.getInstance();
+            nextTryCalendar.setTimeInMillis(nextTry);
+            put(vm, PROP_NEXTTRY, nextTryCalendar);
+            put(vm, ResourceUtil.JCR_LASTMODIFIED, Calendar.getInstance());
             put(vm, PROP_QUEUED_AT, queuedAt);
         } catch (RepositoryException e) {
             LOG.error("Could not write to {}", path, e);
@@ -184,5 +190,10 @@ class QueuedEmail {
      */
     public Long getModified() {
         return modified;
+    }
+
+    /** The path where the queued email is saved. */
+    public String getPath() {
+        return path;
     }
 }
