@@ -2,6 +2,7 @@ package com.composum.platform.workflow.mail;
 
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 
 /**
  * Something went wrong when trying to send an email.<p>
@@ -23,12 +24,14 @@ public class EmailSendingException extends Exception {
 
     /**
      * Returns true if it makes sense to repeat the sending since this might be a temporary error.
-     * Currently we check whether it is an {@link java.net.SocketTimeoutException} wrapped somewhere in the
-     * exception, which could indicate a temporary network failure.
+     * We treat {@link SocketTimeoutException} and {@link SocketException} as retryable, as they can occur on
+     * network failures. We also treat {@link UnknownHostException}s as retryable, since they can also occur on
+     * temporary network failures, and might even be correctable if it was caused by a wrong email server configuration.
      */
     public boolean isRetryable() {
         Throwable rootCause = getRootCause();
-        return rootCause instanceof SocketTimeoutException || rootCause instanceof SocketException;
+        return rootCause instanceof SocketTimeoutException || rootCause instanceof SocketException
+                || rootCause instanceof UnknownHostException;
     }
 
     /**

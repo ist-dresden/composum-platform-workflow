@@ -11,6 +11,7 @@ import com.composum.sling.platform.staging.query.Query;
 import com.composum.sling.platform.staging.query.QueryBuilder;
 import com.google.common.collect.MapMaker;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.mail.Email;
 import org.apache.commons.mail.EmailException;
@@ -44,7 +45,18 @@ import static java.util.concurrent.TimeUnit.*;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
 /**
- * Implementation of {@link EmailService} using Simple Java Mail.
+ * Implementation of {@link EmailService} using Commons-Email.
+ * The queue of unsent emails is kept persistently in the JCR at {@link QueuedEmail#PATH_MAILQUEUE} to ensure they
+ * are sent even if the server crashes. Since we might work in a cluster on the same JCR, there is a protocol that prevents
+ * that one queue entry is processed by two nodes simultaneously:
+ * <ol>
+ *     <li>First we set {@link QueuedEmail#getNextTry()} to the next try and mark it at {@link QueuedEmail#getQueuedAt()}
+ *     with our {@link #serviceId} as reserved for ourselves. These entries are not yet put to the {@link #executorService} but are kept in {@link #reservedQueueEntries}.</li>
+ *     <li>Only on the next {@link #run()} these entries are put to the {@link #executorService}. For each queue entry, when it's {@link EmailTask#trySending()} is called,
+ *     we only do something if the {@link QueuedEmail#getQueuedAt()} is still our {@link #serviceId}.
+ *     Otherwise we assume that another cluster node pulled it to himself in a race condition.</li>
+ * </ol>
+ * // FIXME(hps,15.09.20) How to ensure that it's processed preferredly at this node to make sure the futures get the right value?
  */
 @Component(
         service = {EmailService.class, Runnable.class},
@@ -53,8 +65,8 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
 // FIXME(hps,09.09.20) Reduce call frequency later!
                 "scheduler.expression=0/10 * * * * ?",
                 "scheduler.threadPool=" + EmailServiceImpl.THREADPOOL_NAME,
-                // "scheduler.concurrent=false", // that should be done, but strangely the job isn't sheduled anymore.
-                "scheduler.runOn=SINGLE" // avoid traps by parallel processing somewhat
+                // "scheduler.concurrent=false", // that should be here, but strangely the job isn't sheduled anymore.
+                // "scheduler.runOn=SINGLE" // perhaps. Would avoid traps by parallel processing somewhat
         },
         immediate = true
 )
@@ -94,13 +106,22 @@ public class EmailServiceImpl implements EmailService, Runnable {
 
     protected final String serviceId = RandomStringUtils.random(8, 0, 0, true, true, null, random);
 
-    /** Used to simulate scheduler.concurrent=false . */
+    /**
+     * Used to simulate scheduler.concurrent=false .
+     */
     protected final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
-     * Maps the path in the queue to tasks that are currently queued.
+     * Maps the path in the queue to tasks that are currently queued or ready to be reused - mostly for updating the returned future.
      */
     protected final Map<String, EmailTask> inProcess = new MapMaker().concurrencyLevel(1).weakValues().makeMap();
+
+    /**
+     * We keep here all queue entries which we have reserved for ourselves for one {@link #run()} timertick
+     * to prevent parallel sending of the emails from several cluster nodes.
+     * Access synchronized with {@link #lock}.
+     */
+    protected final List<String> reservedQueueEntries = new ArrayList<>();
 
     @Override
     public boolean isValid(@Nullable String emailAdress) {
@@ -327,29 +348,40 @@ public class EmailServiceImpl implements EmailService, Runnable {
     @Override
     public void run() {
         if (lock.writeLock().tryLock()) {
-            // FIXME(hps,10.09.20) implement completely
-            LOG.info("Cron called.");
             try (ResourceResolver resolver = getServiceResolver()) {
+                // First trigger processing of already reserved entries
+                for (String reservedQueueEntryPath : reservedQueueEntries) {
+                    Resource reservedQueueEntry = resolver.getResource(reservedQueueEntryPath);
+                    if (null != reservedQueueEntry) {
+                        EmailTask oldTask = inProcess.get(reservedQueueEntryPath);
+                        if (oldTask == null) {
+                            QueuedEmail queuedEmail = new QueuedEmail(reservedQueueEntry);
+                            LOG.debug("Requeueing {} : {}", queuedEmail.getLoggingId(), reservedQueueEntryPath);
+                            EmailTask task = new EmailTask(queuedEmail);
+                            task.currentTry = executorService.submit(task::trySending);
+                            inProcess.put(task.queuedEmailPath, task);
+                        } else if (oldTask.currentTry.isDone()) {
+                            LOG.debug("Requeueing still present {} : {}", oldTask.loggingId, oldTask.queuedEmailPath);
+                            oldTask.currentTry = executorService.submit(oldTask::trySending);
+                        }
+                    }
+                }
+                reservedQueueEntries.clear();
+
+                // Now reserve new entries ready to retry
+                Thread.sleep(RandomUtils.nextInt(0,200)); // try to avoid races in a cluster
+                LOG.info("Cron called.");
                 List<Resource> pendingMails = queryPendingMails(resolver);
                 // heuristics so that potential other cluster nodes get somewhat out of each others way - none should starve for work.
+                // TODO(hps,15.09.20) perhaps prefer our own stuff
                 Collections.shuffle(pendingMails);
                 if (pendingMails.size() > 10) {
                     pendingMails = pendingMails.subList(0, pendingMails.size() / 3);
                 }
                 for (Resource pendingMail : pendingMails) {
-                    EmailTask oldTask = inProcess.get(pendingMail.getPath());
-                    if (oldTask == null) {
-                        QueuedEmail queuedEmail = new QueuedEmail(pendingMail);
-                        LOG.debug("Requeueing {} : {}", queuedEmail.getLoggingId(), pendingMail.getPath());
-                        EmailTask task = new EmailTask(queuedEmail);
-                        task.currentTry = executorService.submit(task::trySending);
-                        inProcess.put(task.queuedEmailPath, task);
-                    } else if (oldTask.currentTry.isDone()) {
-                        LOG.debug("Requeueing still present {} : {}", oldTask.loggingId, oldTask.queuedEmailPath);
-                        oldTask.currentTry = executorService.submit(oldTask::trySending);
-                    }
+                    reserve(pendingMail);
                 }
-            } catch (EmailSendingException e) {
+            } catch (EmailSendingException | InterruptedException e) {
                 LOG.error("" + e, e);
             } finally {
                 lock.writeLock().unlock();
@@ -357,6 +389,17 @@ public class EmailServiceImpl implements EmailService, Runnable {
             LOG.info("Cron done.");
         } else {
             LOG.info("Cron currently running - skipping call");
+        }
+    }
+
+    protected void reserve(Resource pendingMail) {
+        String path = pendingMail.getPath();
+        try (ResourceResolver resolver = getServiceResolver()) {
+            QueuedEmail.reserve(resolver.getResource(path), serviceId, this::retryTime);
+            resolver.commit();
+            reservedQueueEntries.add(path);
+        } catch (EmailSendingException | RuntimeException | PersistenceException e) {
+            LOG.error("Trouble reserving {}", path, e);
         }
     }
 
@@ -369,6 +412,11 @@ public class EmailServiceImpl implements EmailService, Runnable {
         List<Resource> pendingMails = new ArrayList<>();
         query.execute().forEach(pendingMails::add);
         return pendingMails;
+    }
+
+    /** The time delay for the next retry in milliseconds. */
+    protected long retryTime(int retry) {
+        return (long) Math.pow(2, retry - 1) * MILLISECONDS.convert(config.retryTime(), SECONDS);
     }
 
     @ObjectClassDefinition(
@@ -459,29 +507,29 @@ public class EmailServiceImpl implements EmailService, Runnable {
                     Resource queuedEmailResource = serviceResolver.getResource(queuedEmailPath);
                     if (queuedEmailResource != null) {
                         queuedEmail = new QueuedEmail(queuedEmailResource);
-                        queuedEmail.setQueuedAt(serviceId);
-                        queuedEmail.setRetry(queuedEmail.getRetry() + 1);
-                        long delay = retryTime(config, queuedEmail.getRetry());
-                        queuedEmail.setNextTry(System.currentTimeMillis() + delay);
-                        queuedEmail.save(serviceResolver);
-                        serviceResolver.commit();
+                        if (serviceId.equals(queuedEmail.getQueuedAt())) {
+                            queuedEmail.save(serviceResolver); // make sure we can write to it by setting last modified time
+                            serviceResolver.commit();
 
-                        Email emailForSession = new SimpleEmail();
-                        Resource serverConfigResource = serviceResolver.getResource(queuedEmail.getServerConfigPath());
-                        if (serverConfigResource == null) {
-                            LOG.error("Service resolver could not read server config {} for {}", queuedEmail.getServerConfigPath(), queuedEmail.getLoggingId());
-                            throw new EmailSendingException("Service resolver could not read server configuration");
+                            Email emailForSession = new SimpleEmail();
+                            Resource serverConfigResource = serviceResolver.getResource(queuedEmail.getServerConfigPath());
+                            if (serverConfigResource == null) {
+                                LOG.error("Service resolver could not read server config {} for {}", queuedEmail.getServerConfigPath(), queuedEmail.getLoggingId());
+                                throw new EmailSendingException("Service resolver could not read server configuration");
+                            }
+                            initializeEmailWithServerConfig(emailForSession, serverConfigResource, queuedEmail.getLoggingId(), queuedEmail.getCredentialToken());
+                            Session session = emailForSession.getMailSession();
+
+                            LOG.info("Processing {} retry {}", queuedEmail.getRetry(), loggingId);
+                            String messageId = sendEmail(queuedEmail.getMimeMessage(session), loggingId);
+
+                            removeQueuedEmail(serviceResolver);
+                            resultFuture.complete(messageId);
+                        } else {
+                            LOG.info("Ignoring since queued for different server - race condition {}", loggingId);
                         }
-                        initializeEmailWithServerConfig(emailForSession, serverConfigResource, queuedEmail.getLoggingId(), queuedEmail.getCredentialToken());
-                        Session session = emailForSession.getMailSession();
-
-                        LOG.info("Processing {} retry {}, next retry delay {}", queuedEmail.getRetry() - 1, loggingId, delay);
-                        String messageId = sendEmail(queuedEmail.getMimeMessage(session), loggingId);
-
-                        removeQueuedEmail(serviceResolver);
-                        resultFuture.complete(messageId);
                     } else {
-                        LOG.error("Queued email is gone for unknown reason for {}", loggingId);
+                        LOG.error("Queued email is gone for unknown reason (possibly processed by other cluster server) for {}", loggingId);
                         resultFuture.completeExceptionally(new EmailSendingException("Queued email is gone for some reason."));
                     }
                 } catch (PersistenceException e) {
@@ -551,10 +599,50 @@ public class EmailServiceImpl implements EmailService, Runnable {
             }
         }
 
-        protected long retryTime(Config conf, int retry) {
-            return (long) Math.pow(2, retry - 1) * MILLISECONDS.convert(conf.retryTime(), SECONDS);
+    }
+
+    /**
+     * Returned future from a EmailTask - it references the task to prevent it from being garbage collected.
+     * (The task is retained in {@link #inProcess} until collected.)
+     */
+    protected static class EmailTaskFuture<V> implements Future<V> {
+
+        protected final Future<V> delegate;
+
+        /**
+         * This keeps a reference to the EmailTask so that it is not deleted as long as this future is in use.
+         */
+        protected final EmailTask emailTask;
+
+        public EmailTaskFuture(Future<V> delegate, EmailTask emailTask) {
+            this.delegate = delegate;
+            this.emailTask = emailTask;
         }
 
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            return delegate.cancel(mayInterruptIfRunning);
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return delegate.isCancelled();
+        }
+
+        @Override
+        public boolean isDone() {
+            return delegate.isDone();
+        }
+
+        @Override
+        public V get() throws InterruptedException, ExecutionException {
+            return delegate.get();
+        }
+
+        @Override
+        public V get(long timeout, @Nonnull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+            return delegate.get(timeout, unit);
+        }
     }
 
 }

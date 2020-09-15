@@ -241,6 +241,9 @@ public class EmailServiceImplTest {
         ec.checkThat(service.isValid(null), is(false));
     }
 
+    /**
+     * Just for development purposes to try out queries.
+     */
     @Test
     public void checkQuery() throws Exception {
         // create an element in the mail queue

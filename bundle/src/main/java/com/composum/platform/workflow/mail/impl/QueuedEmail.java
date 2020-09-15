@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.function.Function;
 
 /**
  * Model for an email that is persisted in the JCR to make it resistent to
@@ -110,6 +111,20 @@ class QueuedEmail {
         }
     }
 
+    /** Reserves the queued email for the given service id.  */
+    public static void reserve(@Nullable Resource resource, @Nonnull String serviceId, @Nonnull Function<Integer, Long> retryTime) {
+        if (resource != null) {
+            ModifiableValueMap mvm = resource.adaptTo(ModifiableValueMap.class);
+            put(mvm, ResourceUtil.JCR_LASTMODIFIED, Calendar.getInstance());
+            put(mvm, PROP_QUEUED_AT, serviceId);
+            Integer retry = mvm.get(PROP_RETRY, 0);
+            put(mvm, PROP_RETRY, retry + 1);
+            Calendar nextTryCalendar = Calendar.getInstance();
+            nextTryCalendar.setTimeInMillis(System.currentTimeMillis() + retryTime.apply(retry));
+            put(mvm, PROP_NEXTTRY, nextTryCalendar);
+        }
+    }
+
     public void save(@Nonnull ResourceResolver resolver) throws EmailSendingException {
         try {
             Resource resource = ResourceUtil.getOrCreateResource(resolver, path, ResourceUtil.TYPE_SLING_FOLDER + "/" + ResourceUtil.TYPE_UNSTRUCTURED);
@@ -131,7 +146,7 @@ class QueuedEmail {
         }
     }
 
-    protected void put(@Nonnull ModifiableValueMap vm, @Nonnull String key, @Nullable Object value) {
+    protected static void put(@Nonnull ModifiableValueMap vm, @Nonnull String key, @Nullable Object value) {
         if (value == null) {
             vm.remove(key);
         } else {
