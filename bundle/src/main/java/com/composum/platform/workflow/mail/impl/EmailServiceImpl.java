@@ -3,10 +3,7 @@ package com.composum.platform.workflow.mail.impl;
 import com.composum.platform.commons.content.service.PlaceholderService;
 import com.composum.platform.commons.credentials.CredentialService;
 import com.composum.platform.commons.util.SlingThreadPoolExecutorService;
-import com.composum.platform.workflow.mail.EmailBuilder;
-import com.composum.platform.workflow.mail.EmailSendingException;
-import com.composum.platform.workflow.mail.EmailServerConfigModel;
-import com.composum.platform.workflow.mail.EmailService;
+import com.composum.platform.workflow.mail.*;
 import com.composum.sling.platform.staging.query.Query;
 import com.composum.sling.platform.staging.query.QueryBuilder;
 import com.google.common.collect.MapMaker;
@@ -39,7 +36,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
 import static com.composum.platform.workflow.mail.EmailServerConfigModel.*;
 import static com.composum.platform.workflow.mail.impl.QueuedEmail.PROP_NEXTTRY;
@@ -58,7 +54,6 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
  *     we only do something if the {@link QueuedEmail#getQueuedAt()} is still our {@link #serviceId}.
  *     Otherwise we assume that another cluster node pulled it to himself in a race condition.</li>
  * </ol>
- * // FIXME(hps,15.09.20) How to ensure that it's processed preferredly at this node to make sure the futures get the right value?
  */
 @Component(
         service = {EmailService.class, Runnable.class},
@@ -188,6 +183,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
             LOG.debug("Queueing {} : {}", loggingId, emailBuilder.toString());
         }
         EmailTask task = new EmailTask(email, serverConfig.getPath(), loggingId, credentialToken);
+        LOG.info("Submitting A {}", loggingId); // FIXME(hps,16.09.20) remove
         task.currentTry = executorService.submit(task::trySending);
         inProcess.put(task.queuedEmailPath, task);
         Future<String> future = task.resultFuture;
@@ -226,7 +222,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
         try {
             Transport.send(message);
             String messageId = message.getMessageID();
-            LOG.info("Sent email {} : {}", loggingId, messageId);
+            LOG.info("Successfully sent email {} : {}", loggingId, messageId);
             return messageId;
         } catch (RuntimeException | MessagingException e) {
             LOG.warn("Sent email  failed {}", loggingId, e);
@@ -313,7 +309,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
     @Activate
     @Modified
     protected void activate(@Nonnull Config theConfig) {
-        this.config = Objects.requireNonNull(theConfig); // FIXME(hps,11.09.20) wrong
+        this.config = theConfig;
         if (isEnabled()) {
             if (executorService == null) {
                 this.executorService = new SlingThreadPoolExecutorService(threadPoolManager, THREADPOOL_NAME);
@@ -329,6 +325,17 @@ public class EmailServiceImpl implements EmailService, Runnable {
         LOG.info("deactivated");
         this.config = null;
         shutdownExecutorService();
+        boolean locked = false;
+        try {
+            locked = lock.writeLock().tryLock(1, SECONDS);
+        } catch (InterruptedException e) {
+            // ignore
+        }
+        reservedQueueEntries.clear();
+        for (EmailTask task : inProcess.values()) {
+            task.resultFuture.completeExceptionally(new EmailStillNotSentException("Service shut down for " + task.loggingId));
+        }
+        inProcess.clear();
     }
 
     protected void shutdownExecutorService() {
@@ -386,7 +393,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
      * Remove entries that are not in the executor and are too old.
      */
     protected void cleanupInProcess() {
-        List<EmailTask> tasks = inProcess.values().stream().collect(Collectors.toList());
+        List<EmailTask> tasks = new ArrayList<>(inProcess.values());
         for (EmailTask task : tasks) {
             Future<?> future = task.currentTry;
             if (future == null || future.isDone()) { // not in the executor
@@ -395,6 +402,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
                     future = removed.currentTry;
                     if (future != null && !future.isDone()) { // recheck since we might have concurrent modification
                         inProcess.put(removed.queuedEmailPath, removed);
+                        removed.resultFuture.completeExceptionally(new EmailStillNotSentException("Email still not sent: " + removed.loggingId));
                     } else {
                         LOG.info("Removing from internal queue since too old: {}", task.loggingId);
                     }
@@ -452,10 +460,12 @@ public class EmailServiceImpl implements EmailService, Runnable {
                     QueuedEmail queuedEmail = new QueuedEmail(reservedQueueEntry);
                     LOG.debug("Requeueing {} : {}", queuedEmail.getLoggingId(), reservedQueueEntryPath);
                     EmailTask task = new EmailTask(queuedEmail);
+                    LOG.info("Submitting B {}", reservedQueueEntryPath); // FIXME(hps,16.09.20) remove
                     task.currentTry = executorService.submit(task::trySending);
                     inProcess.put(task.queuedEmailPath, task);
                 } else if (oldTask.currentTry.isDone()) {
                     LOG.debug("Requeueing still present {} : {}", oldTask.loggingId, oldTask.queuedEmailPath);
+                    LOG.info("Submitting C {}", reservedQueueEntryPath, new Exception("Stacktrace, not thrown")); // FIXME(hps,16.09.20) remove
                     oldTask.currentTry = executorService.submit(oldTask::trySending);
                 }
             }
@@ -589,6 +599,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
                         if (serviceId.equals(queuedEmail.getQueuedAt())) {
                             queuedEmail.save(serviceResolver); // make sure we can write to it by setting last modified time
                             serviceResolver.commit();
+                            serviceResolver.refresh();
 
                             Email emailForSession = new SimpleEmail();
                             Resource serverConfigResource = serviceResolver.getResource(queuedEmail.getServerConfigPath());
@@ -600,10 +611,14 @@ public class EmailServiceImpl implements EmailService, Runnable {
                             Session session = emailForSession.getMailSession();
 
                             LOG.info("Processing {} retry {}", queuedEmail.getRetry(), loggingId);
-                            String messageId = sendEmail(queuedEmail.getMimeMessage(session), loggingId);
+                            if (!resultFuture.isDone()) {
+                                String messageId = sendEmail(queuedEmail.getMimeMessage(session), loggingId);
+                                resultFuture.complete(messageId);
+                            } else { // safety check, but that must not happen.
+                                LOG.error("Bug: Future already completed? Not sending {}", loggingId);
+                            }
 
                             removeQueuedEmail(serviceResolver);
-                            resultFuture.complete(messageId);
                         } else {
                             LOG.info("Ignoring since queued for different server - race condition {}", loggingId);
                         }
@@ -624,7 +639,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
                     LOG.info("Emailservice disabled -> aborting {} , might be retried later, though.", loggingId);
                     resultFuture.completeExceptionally(new EmailSendingException("Emailservice disabled -> abort. Might be retried later, though."));
                 } else if (e.isRetryable()) {
-                    LOG.info("Try {} failed for {}", queuedEmail.getRetry(), loggingId, e);
+                    LOG.info("Try {} failed for {} because of {}", queuedEmail.getRetry(), loggingId, e.toString());
                     if (queuedEmail.getRetry() >= conf.retries()) {
                         resultFuture.completeExceptionally(
                                 new EmailSendingException("Giving up after " + queuedEmail.getRetry() + " retries for " + loggingId, e));
@@ -650,6 +665,9 @@ public class EmailServiceImpl implements EmailService, Runnable {
             }
         }
 
+        /**
+         * Deletes the queued email since we are now done with it, incl. commit.
+         */
         protected void removeQueuedEmail(ResourceResolver serviceResolver) {
             ResourceResolver resolver = null;
             try {
@@ -658,14 +676,14 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 if (res != null) {
                     LOG.info("Removing from email queue: {} for {}", queuedEmailPath, loggingId);
 
-                    // FIXME(hps,15.09.20) actually delete
+                    // FIXME(hps,15.09.20) actually delete; for now we keep the thing around to look at it.
                     QueuedEmail eml = new QueuedEmail(res);
-                    Calendar calendar = Calendar.getInstance();
-                    eml.setNextTry(System.currentTimeMillis() + MILLISECONDS.convert(1000, DAYS));
+                    eml.setNextTry(System.currentTimeMillis() + MILLISECONDS.convert(100000, DAYS));
                     eml.save(resolver);
 
                     // resolver.delete(res);
                     resolver.commit();
+                    resolver.refresh();
                 } else {
                     LOG.warn("Bug: queued email not present anymore for {}", loggingId);
                 }

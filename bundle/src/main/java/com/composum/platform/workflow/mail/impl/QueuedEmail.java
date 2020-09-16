@@ -2,8 +2,8 @@ package com.composum.platform.workflow.mail.impl;
 
 import com.composum.platform.workflow.mail.EmailSendingException;
 import com.composum.sling.core.util.ResourceUtil;
-import org.apache.commons.beanutils.converters.CalendarConverter;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.mail.Email;
 import org.apache.commons.mail.EmailException;
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
@@ -111,7 +112,9 @@ class QueuedEmail {
         }
     }
 
-    /** Reserves the queued email for the given service id.  */
+    /**
+     * Reserves the queued email for the given service id.
+     */
     public static void reserve(@Nullable Resource resource, @Nonnull String serviceId, @Nonnull Function<Integer, Long> retryTime) {
         if (resource != null) {
             ModifiableValueMap mvm = resource.adaptTo(ModifiableValueMap.class);
@@ -119,9 +122,12 @@ class QueuedEmail {
             put(mvm, PROP_QUEUED_AT, serviceId);
             Integer retry = mvm.get(PROP_RETRY, 0);
             put(mvm, PROP_RETRY, retry + 1);
+            long now = System.currentTimeMillis();
             Calendar nextTryCalendar = Calendar.getInstance();
-            nextTryCalendar.setTimeInMillis(System.currentTimeMillis() + retryTime.apply(retry));
+            long delay = TimeUnit.MILLISECONDS.convert(retryTime.apply(retry), TimeUnit.SECONDS);
+            nextTryCalendar.setTimeInMillis(nextTryCalendar.getTimeInMillis() + delay);
             put(mvm, PROP_NEXTTRY, nextTryCalendar);
+            LOG.info("Reserving {} - retry time {}", resource.getPath(), nextTryCalendar.getTime());
         }
     }
 
@@ -140,6 +146,9 @@ class QueuedEmail {
             put(vm, PROP_NEXTTRY, nextTryCalendar);
             put(vm, ResourceUtil.JCR_LASTMODIFIED, Calendar.getInstance());
             put(vm, PROP_QUEUED_AT, queuedAt);
+            if (LOG.isInfoEnabled()) { // FIXME(hps,16.09.20) degrade to debug
+                LOG.info("Saved: " + toString());
+            }
         } catch (RepositoryException e) {
             LOG.error("Could not write to {}", path, e);
             throw new EmailSendingException(e);
@@ -189,6 +198,7 @@ class QueuedEmail {
      * The time for the next try sending the email, as in {@link System#currentTimeMillis()}.
      */
     public void setNextTry(long nextTry) {
+        LOG.info("Set nextTry for {} to {}", loggingId, new Date(nextTry), new Exception("Stacktrace, not thrown")); // FIXME(hps,16.09.20) remove
         this.nextTry = nextTry;
     }
 
@@ -207,8 +217,40 @@ class QueuedEmail {
         return modified;
     }
 
-    /** The path where the queued email is saved. */
+    /**
+     * The path where the queued email is saved.
+     */
     public String getPath() {
         return path;
+    }
+
+
+    @Override
+    public String toString() {
+        ToStringBuilder builder = new ToStringBuilder(this);
+        if (loggingId != null) {
+            builder.append("loggingId", loggingId);
+        }
+        if (path != null) {
+            builder.append("path", path);
+        }
+        if (serverConfigPath != null) {
+            builder.append("serverConfigPath", serverConfigPath);
+        }
+        builder.append("retry", retry);
+        builder.append("nextTry", new Date(nextTry));
+        if (modified != null) {
+            builder.append("modified", modified);
+        }
+        if (queuedAt != null) {
+            builder.append("queuedAt", queuedAt);
+        }
+        if (credentialToken != null) {
+            builder.append("credentialToken", "(omitted)");
+        }
+        if (messageBytes != null) {
+            builder.append("messageBytes", "(omitted)");
+        }
+        return builder.toString();
     }
 }
