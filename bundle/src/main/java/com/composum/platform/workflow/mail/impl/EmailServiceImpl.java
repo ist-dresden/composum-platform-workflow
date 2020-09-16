@@ -39,8 +39,10 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 import static com.composum.platform.workflow.mail.EmailServerConfigModel.*;
+import static com.composum.platform.workflow.mail.impl.QueuedEmail.PROP_NEXTTRY;
 import static java.util.concurrent.TimeUnit.*;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
@@ -62,8 +64,7 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
         service = {EmailService.class, Runnable.class},
         property = {
                 Constants.SERVICE_DESCRIPTION + "=Composum Workflow Email Service",
-// FIXME(hps,09.09.20) Reduce call frequency later!
-                "scheduler.expression=0/10 * * * * ?",
+                "scheduler.expression=" + EmailServiceImpl.TIMERTICK_SCHEDULE,
                 "scheduler.threadPool=" + EmailServiceImpl.THREADPOOL_NAME,
                 // "scheduler.concurrent=false", // that should be here, but strangely the job isn't sheduled anymore.
                 // "scheduler.runOn=SINGLE" // perhaps. Would avoid traps by parallel processing somewhat
@@ -78,6 +79,23 @@ public class EmailServiceImpl implements EmailService, Runnable {
      */
     @SuppressWarnings("unused")
     public static final String PATH_CONFIG = "/var/composum/platform/mail";
+
+    /**
+     * Schedule at which {@link #run()} is called to collect pending mails.
+     * If changing, please remember to change {@link #TIMERTICK_LENGTH_MS}, too!
+     */
+    // FIXME(hps,09.09.20) Reduce call frequency later!
+    protected static final String TIMERTICK_SCHEDULE = "0/10 * * * * ?";
+
+    /**
+     * Time in milliseconds between two calls of {@link #TIMERTICK_SCHEDULE}.
+     */
+    protected static final long TIMERTICK_LENGTH_MS = 10000;
+
+    /**
+     * The maximum time we keep futures waiting for the sent email around.
+     */
+    protected static final long MAXAGE_FUTURE = MILLISECONDS.convert(10, MINUTES);
 
     /**
      * Name of the threadpool, and thus prefix for the thread names.
@@ -234,7 +252,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
     }
 
     /**
-     * Initializes the email session within the email with server configuration.
+     * Initializes the email session within the email with the server configuration.
      */
     protected void initializeEmailWithServerConfig(@Nonnull Email email, @Nonnull Resource serverConfigResource, @Nonnull String loggingId, @Nullable String credentialToken) throws EmailSendingException {
         verifyServiceIsEnabled();
@@ -347,51 +365,107 @@ public class EmailServiceImpl implements EmailService, Runnable {
      */
     @Override
     public void run() {
+        LOG.info("Cron called");
         if (lock.writeLock().tryLock()) {
             try (ResourceResolver resolver = getServiceResolver()) {
-                // First trigger processing of already reserved entries
-                for (String reservedQueueEntryPath : reservedQueueEntries) {
-                    Resource reservedQueueEntry = resolver.getResource(reservedQueueEntryPath);
-                    if (null != reservedQueueEntry) {
-                        EmailTask oldTask = inProcess.get(reservedQueueEntryPath);
-                        if (oldTask == null) {
-                            QueuedEmail queuedEmail = new QueuedEmail(reservedQueueEntry);
-                            LOG.debug("Requeueing {} : {}", queuedEmail.getLoggingId(), reservedQueueEntryPath);
-                            EmailTask task = new EmailTask(queuedEmail);
-                            task.currentTry = executorService.submit(task::trySending);
-                            inProcess.put(task.queuedEmailPath, task);
-                        } else if (oldTask.currentTry.isDone()) {
-                            LOG.debug("Requeueing still present {} : {}", oldTask.loggingId, oldTask.queuedEmailPath);
-                            oldTask.currentTry = executorService.submit(oldTask::trySending);
-                        }
-                    }
-                }
-                reservedQueueEntries.clear();
-
-                // Now reserve new entries ready to retry
-                Thread.sleep(RandomUtils.nextInt(0,200)); // try to avoid races in a cluster
-                LOG.info("Cron called.");
-                List<Resource> pendingMails = queryPendingMails(resolver);
-                // heuristics so that potential other cluster nodes get somewhat out of each others way - none should starve for work.
-                // TODO(hps,15.09.20) perhaps prefer our own stuff
-                Collections.shuffle(pendingMails);
-                if (pendingMails.size() > 10) {
-                    pendingMails = pendingMails.subList(0, pendingMails.size() / 3);
-                }
-                for (Resource pendingMail : pendingMails) {
-                    reserve(pendingMail);
-                }
-            } catch (EmailSendingException | InterruptedException e) {
-                LOG.error("" + e, e);
+                triggerProcessingOfReservedEntries(resolver);
+                retrievePendingMails(resolver);
+            } catch (EmailSendingException | InterruptedException | RuntimeException e) {
+                LOG.error("Trouble managing queue", e);
             } finally {
                 lock.writeLock().unlock();
+                LOG.info("Cron done");
             }
-            LOG.info("Cron done.");
+            cleanupInProcess();
         } else {
             LOG.info("Cron currently running - skipping call");
         }
     }
 
+    /**
+     * Remove entries that are not in the executor and are too old.
+     */
+    protected void cleanupInProcess() {
+        List<EmailTask> tasks = inProcess.values().stream().collect(Collectors.toList());
+        for (EmailTask task : tasks) {
+            Future<?> future = task.currentTry;
+            if (future == null || future.isDone()) { // not in the executor
+                if (task.lastRun < System.currentTimeMillis() - MAXAGE_FUTURE) {
+                    EmailTask removed = inProcess.remove(task.queuedEmailPath);
+                    future = removed.currentTry;
+                    if (future != null && !future.isDone()) { // recheck since we might have concurrent modification
+                        inProcess.put(removed.queuedEmailPath, removed);
+                    } else {
+                        LOG.info("Removing from internal queue since too old: {}", task.loggingId);
+                    }
+                }
+            }
+        }
+    }
+
+    protected void retrievePendingMails(ResourceResolver resolver) throws InterruptedException {
+        // Now reserve new entries ready to retry
+        Thread.sleep(RandomUtils.nextInt(0, 200)); // try to avoid races in a cluster
+        List<Resource> pendingMails = queryPendingMails(resolver);
+        Collections.shuffle(pendingMails);
+        List<Resource> processList = new ArrayList<>();
+
+        // immediately do things for which we have a future laying around.
+        for (Iterator<Resource> it = pendingMails.iterator(); it.hasNext(); ) {
+            Resource pendingMail = it.next();
+            String pendingServiceId = pendingMail.getValueMap().get(QueuedEmail.PROP_QUEUED_AT, String.class);
+            if (serviceId.equals(pendingServiceId) && inProcess.containsKey(pendingMail.getPath())) {
+                processList.add(pendingMail);
+                it.remove();
+            }
+        }
+
+        // mails that have been touched by other cluster members we process only if they are at least two timer ticks
+        // old, so that they are preferredly processed by their own cluster member.
+        // we also try not to starve others for work, so we take only a couple of them.
+        int maxothercount = pendingMails.size() / 3;
+        long otherServerStealTime = System.currentTimeMillis() - 2 * TIMERTICK_LENGTH_MS;
+        for (Resource pendingMail : pendingMails) {
+            if (maxothercount >= 0) {
+                String pendingServiceId = pendingMail.getValueMap().get(QueuedEmail.PROP_QUEUED_AT, String.class);
+                Long nextTry = pendingMail.getValueMap().get(PROP_NEXTTRY, System.currentTimeMillis());
+                if (serviceId.equals(pendingServiceId) || nextTry < otherServerStealTime) {
+                    processList.add(pendingMail);
+                    --maxothercount;
+                }
+            }
+        }
+
+        // now reserve what we have collected.
+        for (Resource pendingMail : processList) {
+            reserve(pendingMail);
+        }
+    }
+
+    protected void triggerProcessingOfReservedEntries(ResourceResolver resolver) throws EmailSendingException {
+        // First trigger processing of already reserved entries
+        for (String reservedQueueEntryPath : reservedQueueEntries) {
+            Resource reservedQueueEntry = resolver.getResource(reservedQueueEntryPath);
+            if (null != reservedQueueEntry) {
+                EmailTask oldTask = inProcess.get(reservedQueueEntryPath);
+                if (oldTask == null) {
+                    QueuedEmail queuedEmail = new QueuedEmail(reservedQueueEntry);
+                    LOG.debug("Requeueing {} : {}", queuedEmail.getLoggingId(), reservedQueueEntryPath);
+                    EmailTask task = new EmailTask(queuedEmail);
+                    task.currentTry = executorService.submit(task::trySending);
+                    inProcess.put(task.queuedEmailPath, task);
+                } else if (oldTask.currentTry.isDone()) {
+                    LOG.debug("Requeueing still present {} : {}", oldTask.loggingId, oldTask.queuedEmailPath);
+                    oldTask.currentTry = executorService.submit(oldTask::trySending);
+                }
+            }
+        }
+        reservedQueueEntries.clear();
+    }
+
+    /**
+     * Mark the queue entry that we are going to process it really soon now.
+     */
     protected void reserve(Resource pendingMail) {
         String path = pendingMail.getPath();
         try (ResourceResolver resolver = getServiceResolver()) {
@@ -407,14 +481,16 @@ public class EmailServiceImpl implements EmailService, Runnable {
     protected List<Resource> queryPendingMails(ResourceResolver resolver) {
         Query query = resolver.adaptTo(QueryBuilder.class).createQuery();
         query.path(QueuedEmail.PATH_MAILQUEUE).condition(
-                query.conditionBuilder().property(QueuedEmail.PROP_NEXTTRY).lt().val(Calendar.getInstance())
+                query.conditionBuilder().property(PROP_NEXTTRY).lt().val(Calendar.getInstance())
         );
         List<Resource> pendingMails = new ArrayList<>();
         query.execute().forEach(pendingMails::add);
         return pendingMails;
     }
 
-    /** The time delay for the next retry in milliseconds. */
+    /**
+     * The time delay for the next retry in milliseconds.
+     */
     protected long retryTime(int retry) {
         return (long) Math.pow(2, retry - 1) * MILLISECONDS.convert(config.retryTime(), SECONDS);
     }
@@ -467,6 +543,9 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 return super.cancel(mayInterruptIfRunning);
             }
         };
+
+        protected volatile long lastRun;
+
         protected volatile Future<?> currentTry;
 
         /**
@@ -482,6 +561,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
             queuedEmailPath = queuedEmail.getPath(); // FIXME(hps,10.09.20) tenant?
             queuedEmail.setNextTry(System.currentTimeMillis() + MILLISECONDS.convert(config.retryTime(), SECONDS));
             queuedEmail.setQueuedAt(serviceId);
+            lastRun = System.currentTimeMillis();
             try (ResourceResolver serviceResolver = getServiceResolver()) {
                 queuedEmail.save(serviceResolver);
                 serviceResolver.commit();
@@ -494,14 +574,13 @@ public class EmailServiceImpl implements EmailService, Runnable {
         public EmailTask(@Nonnull QueuedEmail queuedEmail) {
             queuedEmailPath = queuedEmail.path;
             loggingId = queuedEmail.getLoggingId();
+            lastRun = System.currentTimeMillis();
         }
 
         public void trySending() {
             LOG.debug(">>>trySending {}", loggingId);
             QueuedEmail queuedEmail = null;
             try {
-                // FIXME(hps,11.09.20) use precautions
-
                 verifyServiceIsEnabled();
                 try (ResourceResolver serviceResolver = getServiceResolver()) {
                     Resource queuedEmailResource = serviceResolver.getResource(queuedEmailPath);
@@ -566,6 +645,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 if (resultFuture.isDone()) {
                     inProcess.remove(queuedEmailPath);
                 }
+                lastRun = System.currentTimeMillis();
                 LOG.debug("<<<trySending {}", loggingId);
             }
         }
