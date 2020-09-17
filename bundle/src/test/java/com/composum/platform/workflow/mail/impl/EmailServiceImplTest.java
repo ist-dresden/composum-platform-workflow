@@ -13,6 +13,8 @@ import com.composum.sling.platform.staging.query.impl.QueryBuilderAdapterFactory
 import com.composum.sling.platform.testing.testutil.ErrorCollectorAlwaysPrintingFailures;
 import com.composum.sling.platform.testing.testutil.JcrTestUtils;
 import com.google.common.base.Function;
+import org.apache.commons.mail.Email;
+import org.apache.commons.mail.SimpleEmail;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -22,7 +24,10 @@ import org.apache.sling.commons.threads.ThreadPoolConfig;
 import org.apache.sling.commons.threads.ThreadPoolManager;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit.SlingContext;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.mockito.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,10 +35,12 @@ import org.slf4j.LoggerFactory;
 import javax.jcr.RepositoryException;
 import javax.mail.Authenticator;
 import javax.mail.PasswordAuthentication;
+import javax.mail.internet.InternetAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -45,7 +52,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link EmailService}.
+ * Tests for {@link EmailServiceImpl}.
  */
 public class EmailServiceImplTest {
 
@@ -208,11 +215,11 @@ public class EmailServiceImplTest {
         email.setSubject("TestMail");
         email.setBody("This is a test impl ... :-)");
         email.setTo("somethingelse@example.net");
-        when(config.retries()).thenReturn(3);
+        when(config.retries()).thenReturn(2);
         when(config.retryTime()).thenReturn(1);
         long begin = System.currentTimeMillis();
         Future<String> future = service.sendMail(email, invalidServerConfigResource);
-        for (int i=0; i < 10 && !future.isDone(); ++i) {
+        for (int i = 0; i < 10 && !future.isDone(); ++i) {
             Thread.sleep(1000);
             service.run();
         }
@@ -220,7 +227,7 @@ public class EmailServiceImplTest {
             future.get(20000, TimeUnit.MILLISECONDS);
             fail("Failure expected");
         } catch (ExecutionException e) {
-            ec.checkThat(e.getCause().getMessage(), containsString("Giving up after 3 retries for"));
+            ec.checkThat(e.getCause().getMessage(), containsString("Giving up after 2 retries for"));
             long time = System.currentTimeMillis() - begin;
             ec.checkThat("" + time, time >= 4000, is(true));
             ec.checkThat("" + time, time < 10000, is(true));
@@ -241,18 +248,20 @@ public class EmailServiceImplTest {
      */
     @Test
     public void checkQuery() throws Exception {
+        ResourceResolver resolver = context.resourceResolver();
+
         // create an element in the mail queue
-        EmailBuilder email = new EmailBuilder(beanContext, null);
+        Email email = new SimpleEmail();
         email.setFrom("something@example.net");
         email.setSubject("TestMail");
-        email.setBody("This is a test impl ... :-)");
-        email.setTo("somethingelse@example.net");
-        when(config.retries()).thenReturn(3);
-        when(config.retryTime()).thenReturn(300);
-        long begin = System.currentTimeMillis();
-        Future<String> future = service.sendMail(email, invalidServerConfigResource);
+        email.setMsg("This is a test impl ... :-)");
+        email.setTo(Collections.singletonList(new InternetAddress("somethingelse@example.net")));
+        email.setHostName("192.0.2.1");
+        QueuedEmail queuedEmail = new QueuedEmail("234u298j9sdij9", email, "/somecfg", null);
+        queuedEmail.setNextTry(System.currentTimeMillis());
+        queuedEmail.create(context.resourceResolver());
+        resolver.commit();
 
-        ResourceResolver resolver = context.resourceResolver();
         Query query = resolver.adaptTo(QueryBuilder.class).createQuery();
         query.path(QueuedEmail.PATH_MAILQUEUE);
         Calendar calendar = Calendar.getInstance();

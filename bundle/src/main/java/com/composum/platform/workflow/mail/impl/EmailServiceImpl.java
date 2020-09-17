@@ -514,9 +514,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
      * The time delay for the next retry in milliseconds.
      */
     protected long retryTime(int retry) {
-        long result = (long) (Math.pow(2, retry - 1) * MILLISECONDS.convert(config.retryTime(), SECONDS));
-        LOG.info("retryTime({})={}", retry, result);
-        return result;
+        return (long) (Math.pow(2, retry) * MILLISECONDS.convert(config.retryTime(), SECONDS));
     }
 
     @ObjectClassDefinition(
@@ -587,7 +585,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
             queuedEmail.setQueuedAt(serviceId);
             lastRun = System.currentTimeMillis();
             try (ResourceResolver serviceResolver = getServiceResolver()) {
-                queuedEmail.save(serviceResolver);
+                queuedEmail.create(serviceResolver);
                 serviceResolver.commit();
             } catch (PersistenceException e) {
                 LOG.error("Could not persist queued email at {}", queuedEmailPath, e);
@@ -611,8 +609,9 @@ public class EmailServiceImpl implements EmailService, Runnable {
                     if (queuedEmailResource != null) {
                         queuedEmail = new QueuedEmail(queuedEmailResource);
                         if (serviceId.equals(queuedEmail.getQueuedAt())) {
-                            // FIXME(hps,17.09.20) set email temporarily, so that is never ever redelivered since repeated emails are much worse than failed emails
-                            queuedEmail.save(serviceResolver); // make sure we can write to it by setting last modified time
+                            queuedEmail.setState(STATE_SENDING);
+                            queuedEmail.setNextTry(NEXTTRY_NEVER); // not automatically selected anymore
+                            queuedEmail.update(serviceResolver); // make sure we can write to it by setting last modified time
                             serviceResolver.commit();
                             serviceResolver.refresh();
 
@@ -660,22 +659,45 @@ public class EmailServiceImpl implements EmailService, Runnable {
                                 new EmailSendingException("Giving up after " + queuedEmail.getRetry() + " retries for " + loggingId, e));
                         LOG.info("Giving up after {} retries for {}", queuedEmail.getRetry(), loggingId, e);
                     } else {
-                        // nothing to do - we just wait until this is reintroduced into the queue
+                        prepareForRetry();
                     }
                 } else {
                     resultFuture.completeExceptionally(e);
                     LOG.warn("Non-retryable error, giving up: try {} failed for {}", (queuedEmail != null ? queuedEmail.getRetry() : -1), loggingId, e);
                     archiveQueuedEmail(null, false);
                 }
-            } catch (RuntimeException | Error e) {
+            } catch (RuntimeException e) { // Bug.
                 LOG.warn("Unexpected exception", e);
                 resultFuture.completeExceptionally(e);
+                archiveQueuedEmail(null, false);
+                throw e;
+            } catch (Error e) {
+                LOG.warn("Unexpected error", e);
+                resultFuture.completeExceptionally(e);
+                throw e;
             } finally {
                 if (resultFuture.isDone()) {
                     inProcess.remove(queuedEmailPath);
                 }
                 lastRun = System.currentTimeMillis();
                 LOG.debug("<<<trySending {}", loggingId);
+            }
+        }
+
+        protected void prepareForRetry() {
+            try (ResourceResolver resolver = getServiceResolver()) {
+                Resource queuedResource = resolver.getResource(queuedEmailPath);
+                if (queuedResource != null) {
+                    QueuedEmail queuedEmail = new QueuedEmail(queuedResource);
+                    queuedEmail.setState(null);
+                    queuedEmail.setNextTry(System.currentTimeMillis() + retryTime(queuedEmail.getRetry()));
+                    queuedEmail.update(resolver);
+                    resolver.commit();
+                } else {
+                    LOG.error("Bug? Pending email disappeared. {}", queuedEmailPath);
+                }
+            } catch (EmailSendingException | RuntimeException | PersistenceException e) {
+                LOG.error("Error preparing for retry {}", queuedEmailPath, e);
             }
         }
 
@@ -688,12 +710,18 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 resolver = serviceResolver != null ? serviceResolver : getServiceResolver();
                 Resource res = resolver.getResource(queuedEmailPath);
                 if (res != null) {
-
                     boolean keepMail = success ? cleanupService.keepDeliveredEmails() : cleanupService.keepFailedEmails();
                     String basepath = success ? PATH_MAILQUEUE_DELIVERED : PATH_MAILQUEUE_FAILED;
                     String newLocation = appendPaths(basepath, relativePath(QueuedEmail.PATH_MAILQUEUE, queuedEmailPath));
 
                     if (keepMail) {
+                        QueuedEmail queuedEmail = new QueuedEmail(res);
+                        String newState = success ? STATE_SENT : STATE_FAILED;
+                        queuedEmail.setState(newState);
+                        queuedEmail.setNextTry(NEXTTRY_NEVER);
+                        queuedEmail.update(resolver);
+                        resolver.commit();
+                        resolver.refresh();
                         LOG.info("Archiving {} to {}", loggingId, newLocation);
                         resolver.move(queuedEmailPath, ResourceUtil.getParent(newLocation));
                     } else {

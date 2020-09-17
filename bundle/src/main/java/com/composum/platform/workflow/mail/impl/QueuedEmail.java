@@ -56,6 +56,27 @@ class QueuedEmail {
     public static final String PROP_RETRY = "retry";
     public static final String PROP_NEXTTRY = "nextTry";
     public static final String PROP_QUEUED_AT = "queuedAt";
+    public static final String PROP_STATE = "state";
+
+    public static final String STATE_SENDING = "sending";
+    /**
+     * Value for {@link #PROP_STATE} that says the mail was successfully sent.
+     */
+    public static final String STATE_SENT = "sent";
+    /**
+     * Value for {@link #PROP_STATE} that says that sending the mail failed.
+     */
+    public static final String STATE_FAILED = "failed";
+    /**
+     * Value for {@link #PROP_STATE} that says that the mail is in the queue of the corresponding cluster.
+     */
+    public static final String STATE_RESERVED = "reserved";
+
+    /**
+     * A special value for {@link #getNextTry()} that says "never retry". Prevents it being found by the
+     * queries for {@link #PROP_NEXTTRY}. (1.1.9999)
+     */
+    public static final long NEXTTRY_NEVER = 253370764800000L;
 
     protected final String path;
     protected final String loggingId;
@@ -66,6 +87,7 @@ class QueuedEmail {
     protected int retry;
     protected long nextTry;
     protected String queuedAt;
+    protected String state;
 
     /**
      * Read data from resource.
@@ -85,6 +107,7 @@ class QueuedEmail {
         retry = vm.get(PROP_RETRY, 0);
         nextTry = vm.get(PROP_NEXTTRY, System.currentTimeMillis());
         modified = vm.get(ResourceUtil.PROP_LAST_MODIFIED, Long.class);
+        state = vm.get(PROP_STATE, String.class);
     }
 
     public QueuedEmail(@Nonnull String loggingId, @Nonnull Email email, @Nonnull String serverConfigPath, @Nullable String credentialToken) throws EmailSendingException {
@@ -127,6 +150,7 @@ class QueuedEmail {
     public static void reserve(@Nullable Resource resource, @Nonnull String serviceId, @Nonnull Function<Integer, Long> retryTime) {
         if (resource != null) {
             ModifiableValueMap mvm = resource.adaptTo(ModifiableValueMap.class);
+            put(mvm, PROP_STATE, STATE_RESERVED);
             put(mvm, ResourceUtil.JCR_LASTMODIFIED, Calendar.getInstance());
             put(mvm, PROP_QUEUED_AT, serviceId);
             int retry = mvm.get(PROP_RETRY, 0);
@@ -140,27 +164,47 @@ class QueuedEmail {
         }
     }
 
-    public void save(@Nonnull ResourceResolver resolver) throws EmailSendingException {
+    public void create(@Nonnull ResourceResolver resolver) throws EmailSendingException {
         try {
             Resource resource = ResourceUtil.getOrCreateResource(resolver, path, ResourceUtil.TYPE_SLING_FOLDER + "/" + ResourceUtil.TYPE_UNSTRUCTURED);
-            ModifiableValueMap vm = resource.adaptTo(ModifiableValueMap.class);
-            put(vm, ResourceUtil.PROP_MIXINTYPES, new String[]{ResourceUtil.MIX_CREATED, ResourceUtil.MIX_LAST_MODIFIED});
-            put(vm, PROP_LOGGINGID, loggingId);
-            put(vm, PROP_SERVERCONFIG, serverConfigPath);
-            put(vm, PROP_CREDENTIALKEY, credentialToken);
-            put(vm, PROP_EMAIL, new ByteArrayInputStream(messageBytes));
-            put(vm, PROP_RETRY, retry);
-            Calendar nextTryCalendar = Calendar.getInstance();
-            nextTryCalendar.setTimeInMillis(nextTry);
-            put(vm, PROP_NEXTTRY, nextTryCalendar);
-            put(vm, ResourceUtil.JCR_LASTMODIFIED, Calendar.getInstance());
-            put(vm, PROP_QUEUED_AT, queuedAt);
-            if (LOG.isDebugEnabled()) {
-                LOG.info("Saved: " + toString());
-            }
+            writeToResource(resource);
         } catch (RepositoryException e) {
             LOG.error("Could not write to {}", path, e);
             throw new EmailSendingException(e);
+        }
+    }
+
+    public void update(@Nonnull ResourceResolver resolver) throws EmailSendingException {
+        try {
+            Resource resource = resolver.getResource(path);
+            if (resource != null) {
+                writeToResource(resource);
+            } else {
+                LOG.error("Bug? Queued email vanished: {}", path);
+                throw new EmailSendingException("Queued email vanished: " + path);
+            }
+        } catch (RuntimeException e) {
+            LOG.error("Could not write to {}", path, e);
+            throw new EmailSendingException(e);
+        }
+    }
+
+    protected void writeToResource(Resource resource) {
+        ModifiableValueMap vm = resource.adaptTo(ModifiableValueMap.class);
+        put(vm, ResourceUtil.PROP_MIXINTYPES, new String[]{ResourceUtil.MIX_CREATED, ResourceUtil.MIX_LAST_MODIFIED});
+        put(vm, PROP_LOGGINGID, loggingId);
+        put(vm, PROP_SERVERCONFIG, serverConfigPath);
+        put(vm, PROP_CREDENTIALKEY, credentialToken);
+        put(vm, PROP_EMAIL, new ByteArrayInputStream(messageBytes));
+        put(vm, PROP_RETRY, retry);
+        Calendar nextTryCalendar = Calendar.getInstance();
+        nextTryCalendar.setTimeInMillis(nextTry);
+        put(vm, PROP_NEXTTRY, nextTryCalendar);
+        put(vm, ResourceUtil.JCR_LASTMODIFIED, Calendar.getInstance());
+        put(vm, PROP_QUEUED_AT, queuedAt);
+        put(vm, PROP_STATE, state);
+        if (LOG.isDebugEnabled()) {
+            LOG.info("Saved: " + toString());
         }
     }
 
@@ -232,6 +276,17 @@ class QueuedEmail {
         return path;
     }
 
+    /**
+     * The state of the mail, if applicable. One of null,
+     * {@link #STATE_RESERVED}, {@link #STATE_SENDING}, {@link #STATE_SENT}, {@link #STATE_FAILED}.
+     */
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
+    }
 
     @Override
     public String toString() {
@@ -241,6 +296,9 @@ class QueuedEmail {
         }
         if (path != null) {
             builder.append("path", path);
+        }
+        if (state != null) {
+            builder.append("state", state);
         }
         if (serverConfigPath != null) {
             builder.append("serverConfigPath", serverConfigPath);
