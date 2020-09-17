@@ -170,6 +170,9 @@ public class EmailServiceImpl implements EmailService, Runnable {
     @Override
     public Future<String> sendMail(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
         verifyServiceIsEnabled();
+        if (serverConfig == null) {
+            throw new EmailSendingException("No server configuration given");
+        }
         String loggingId = makeLoggingId(emailBuilder, serverConfig);
         String credentialToken = getCredentialToken(serverConfig, loggingId);
         Email email = emailBuilder.buildEmail(placeholderService);
@@ -183,7 +186,6 @@ public class EmailServiceImpl implements EmailService, Runnable {
             LOG.debug("Queueing {} : {}", loggingId, emailBuilder.toString());
         }
         EmailTask task = new EmailTask(email, serverConfig.getPath(), loggingId, credentialToken);
-        LOG.info("Submitting A {}", loggingId); // FIXME(hps,16.09.20) remove
         task.currentTry = executorService.submit(task::trySending);
         inProcess.put(task.queuedEmailPath, task);
         Future<String> future = task.resultFuture;
@@ -219,6 +221,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
     }
 
     protected String sendEmail(MimeMessage message, String loggingId) throws EmailSendingException {
+        verifyServiceIsEnabled();
         try {
             Transport.send(message);
             String messageId = message.getMessageID();
@@ -323,19 +326,24 @@ public class EmailServiceImpl implements EmailService, Runnable {
     @Deactivate
     protected void deactivate() {
         LOG.info("deactivated");
-        this.config = null;
-        shutdownExecutorService();
-        boolean locked = false;
         try {
-            locked = lock.writeLock().tryLock(1, SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
+            this.config = null;
+            boolean locked = false;
+            try {
+                shutdownExecutorService();
+                locked = lock.writeLock().tryLock(1, SECONDS);
+            } catch (InterruptedException e) {
+                // ignore
+            } finally {
+                reservedQueueEntries.clear();
+                for (EmailTask task : inProcess.values()) {
+                    task.resultFuture.completeExceptionally(new EmailStillNotSentException("Service shut down for " + task.loggingId));
+                }
+                inProcess.clear();
+            }
+        } catch (RuntimeException e) {
+            LOG.error("Error during deactivation", e);
         }
-        reservedQueueEntries.clear();
-        for (EmailTask task : inProcess.values()) {
-            task.resultFuture.completeExceptionally(new EmailStillNotSentException("Service shut down for " + task.loggingId));
-        }
-        inProcess.clear();
     }
 
     protected void shutdownExecutorService() {
@@ -460,12 +468,10 @@ public class EmailServiceImpl implements EmailService, Runnable {
                     QueuedEmail queuedEmail = new QueuedEmail(reservedQueueEntry);
                     LOG.debug("Requeueing {} : {}", queuedEmail.getLoggingId(), reservedQueueEntryPath);
                     EmailTask task = new EmailTask(queuedEmail);
-                    LOG.info("Submitting B {}", reservedQueueEntryPath); // FIXME(hps,16.09.20) remove
                     task.currentTry = executorService.submit(task::trySending);
                     inProcess.put(task.queuedEmailPath, task);
                 } else if (oldTask.currentTry.isDone()) {
                     LOG.debug("Requeueing still present {} : {}", oldTask.loggingId, oldTask.queuedEmailPath);
-                    LOG.info("Submitting C {}", reservedQueueEntryPath, new Exception("Stacktrace, not thrown")); // FIXME(hps,16.09.20) remove
                     oldTask.currentTry = executorService.submit(oldTask::trySending);
                 }
             }
@@ -502,7 +508,9 @@ public class EmailServiceImpl implements EmailService, Runnable {
      * The time delay for the next retry in milliseconds.
      */
     protected long retryTime(int retry) {
-        return (long) Math.pow(2, retry - 1) * MILLISECONDS.convert(config.retryTime(), SECONDS);
+        long result = (long) (Math.pow(2, retry - 1) * MILLISECONDS.convert(config.retryTime(), SECONDS));
+        LOG.info("retryTime({})={}", retry,result);
+        return result;
     }
 
     @ObjectClassDefinition(
@@ -645,7 +653,6 @@ public class EmailServiceImpl implements EmailService, Runnable {
                                 new EmailSendingException("Giving up after " + queuedEmail.getRetry() + " retries for " + loggingId, e));
                         LOG.info("Giving up after {} retries for {}", queuedEmail.getRetry(), loggingId, e);
                     } else {
-                        // FIXME(hps,14.09.20) What about the result future?
                         // nothing to do - we just wait until this is reintroduced into the queue
                     }
                 } else {

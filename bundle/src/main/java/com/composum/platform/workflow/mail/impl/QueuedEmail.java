@@ -120,14 +120,14 @@ class QueuedEmail {
             ModifiableValueMap mvm = resource.adaptTo(ModifiableValueMap.class);
             put(mvm, ResourceUtil.JCR_LASTMODIFIED, Calendar.getInstance());
             put(mvm, PROP_QUEUED_AT, serviceId);
-            Integer retry = mvm.get(PROP_RETRY, 0);
+            int retry = mvm.get(PROP_RETRY, 0);
             put(mvm, PROP_RETRY, retry + 1);
             long now = System.currentTimeMillis();
             Calendar nextTryCalendar = Calendar.getInstance();
-            long delay = TimeUnit.MILLISECONDS.convert(retryTime.apply(retry), TimeUnit.SECONDS);
+            long delay = retryTime.apply(retry + 1);
             nextTryCalendar.setTimeInMillis(nextTryCalendar.getTimeInMillis() + delay);
             put(mvm, PROP_NEXTTRY, nextTryCalendar);
-            LOG.info("Reserving {} - retry time {}", resource.getPath(), nextTryCalendar.getTime());
+            LOG.info("Reserving {} - retry {} time {}", resource.getPath(), retry + 1, nextTryCalendar.getTime());
         }
     }
 
@@ -146,7 +146,7 @@ class QueuedEmail {
             put(vm, PROP_NEXTTRY, nextTryCalendar);
             put(vm, ResourceUtil.JCR_LASTMODIFIED, Calendar.getInstance());
             put(vm, PROP_QUEUED_AT, queuedAt);
-            if (LOG.isInfoEnabled()) { // FIXME(hps,16.09.20) degrade to debug
+            if (LOG.isDebugEnabled()) {
                 LOG.info("Saved: " + toString());
             }
         } catch (RepositoryException e) {
@@ -198,7 +198,6 @@ class QueuedEmail {
      * The time for the next try sending the email, as in {@link System#currentTimeMillis()}.
      */
     public void setNextTry(long nextTry) {
-        LOG.info("Set nextTry for {} to {}", loggingId, new Date(nextTry), new Exception("Stacktrace, not thrown")); // FIXME(hps,16.09.20) remove
         this.nextTry = nextTry;
     }
 

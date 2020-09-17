@@ -149,7 +149,6 @@ public class EmailServiceImplTest {
 
     @After
     public void tearDown() {
-        printJcr(); // FIXME(hps,11.09.20) remove
         service.deactivate();
         if (!threadPool.isShutdown()) {
             threadPool.shutdownNow();
@@ -202,7 +201,6 @@ public class EmailServiceImplTest {
         }
     }
 
-    @Ignore // FIXME(hps,11.09.20) remove
     @Test // (timeout = 12000)
     public void retries() throws Throwable {
         EmailBuilder email = new EmailBuilder(beanContext, null);
