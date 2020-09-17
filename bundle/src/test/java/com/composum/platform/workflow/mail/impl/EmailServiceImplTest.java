@@ -212,13 +212,10 @@ public class EmailServiceImplTest {
         when(config.retryTime()).thenReturn(1);
         long begin = System.currentTimeMillis();
         Future<String> future = service.sendMail(email, invalidServerConfigResource);
-        Thread.sleep(1000);
-        service.run();
-        Thread.sleep(1000);
-        service.run();
-        Thread.sleep(1000);
-        service.run();
-        Thread.sleep(1000);
+        for (int i=0; i < 10 && !future.isDone(); ++i) {
+            Thread.sleep(1000);
+            service.run();
+        }
         try {
             future.get(20000, TimeUnit.MILLISECONDS);
             fail("Failure expected");

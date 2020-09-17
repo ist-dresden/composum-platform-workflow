@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
@@ -39,6 +38,16 @@ class QueuedEmail {
      * Location where the queued mails are saved. Access should be allowed only for the service user.
      */
     public static final String PATH_MAILQUEUE = "/var/composum/platform/mail/queue";
+
+    /**
+     * Location where the queued mails that exceeded the number of retries are moved. Access should be allowed only for the service user.
+     */
+    public static final String PATH_MAILQUEUE_FAILED = "/var/composum/platform/mail/queue-failed";
+
+    /**
+     * Location where delivered mails are saved, if so configured. Access should be allowed only for the service user.
+     */
+    public static final String PATH_MAILQUEUE_DELIVERED = "/var/composum/platform/mail/queue-delivered";
 
     public static final String PROP_LOGGINGID = "loggingId";
     public static final String PROP_EMAIL = "email";

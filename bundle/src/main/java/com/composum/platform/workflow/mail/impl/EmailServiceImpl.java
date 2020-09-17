@@ -4,6 +4,7 @@ import com.composum.platform.commons.content.service.PlaceholderService;
 import com.composum.platform.commons.credentials.CredentialService;
 import com.composum.platform.commons.util.SlingThreadPoolExecutorService;
 import com.composum.platform.workflow.mail.*;
+import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.platform.staging.query.Query;
 import com.composum.sling.platform.staging.query.QueryBuilder;
 import com.google.common.collect.MapMaker;
@@ -38,7 +39,9 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static com.composum.platform.workflow.mail.EmailServerConfigModel.*;
-import static com.composum.platform.workflow.mail.impl.QueuedEmail.PROP_NEXTTRY;
+import static com.composum.platform.workflow.mail.impl.QueuedEmail.*;
+import static com.composum.sling.core.util.SlingResourceUtil.appendPaths;
+import static com.composum.sling.core.util.SlingResourceUtil.relativePath;
 import static java.util.concurrent.TimeUnit.*;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
@@ -110,6 +113,9 @@ public class EmailServiceImpl implements EmailService, Runnable {
 
     @Reference
     protected PlaceholderService placeholderService;
+
+    @Reference
+    protected EmailCleanupService cleanupService;
 
     protected volatile ExecutorService executorService;
 
@@ -509,7 +515,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
      */
     protected long retryTime(int retry) {
         long result = (long) (Math.pow(2, retry - 1) * MILLISECONDS.convert(config.retryTime(), SECONDS));
-        LOG.info("retryTime({})={}", retry,result);
+        LOG.info("retryTime({})={}", retry, result);
         return result;
     }
 
@@ -518,7 +524,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
     )
     @interface Config {
 
-        @AttributeDefinition(name = "enabled", required = true, description =
+        @AttributeDefinition(name = "enabled", description =
                 "The on/off switch for the mail service. By default off, since it needs to be configured.")
         boolean enabled() default false;
 
@@ -532,16 +538,16 @@ public class EmailServiceImpl implements EmailService, Runnable {
         )
         int socketTimeout() default 10000;
 
-        @AttributeDefinition(name = "Retries", required = true, description =
+        @AttributeDefinition(name = "Retries", description =
                 "The number of retries when we have connection failure to the mail relay. It starts with 5 minutes, " +
                         "doubling the interval each time. That is, 10 at 300 seconds 1st retry is about 2 days.")
         int retries() default 10;
 
-        @AttributeDefinition(name = "1st retry", required = true, description =
+        @AttributeDefinition(name = "1st retry", description =
                 "Time in seconds after which the first retry for retryable failures is started.")
         int retryTime() default 300;
 
-        @AttributeDefinition(name = "Debug", required = true, description =
+        @AttributeDefinition(name = "Debug", description =
                 "If set to true, interactions with the email relay are printed to stdout.")
         boolean debugInteractions() default false;
 
@@ -605,6 +611,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
                     if (queuedEmailResource != null) {
                         queuedEmail = new QueuedEmail(queuedEmailResource);
                         if (serviceId.equals(queuedEmail.getQueuedAt())) {
+                            // FIXME(hps,17.09.20) set email temporarily, so that is never ever redelivered since repeated emails are much worse than failed emails
                             queuedEmail.save(serviceResolver); // make sure we can write to it by setting last modified time
                             serviceResolver.commit();
                             serviceResolver.refresh();
@@ -626,7 +633,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
                                 LOG.error("Bug: Future already completed? Not sending {}", loggingId);
                             }
 
-                            removeQueuedEmail(serviceResolver);
+                            archiveQueuedEmail(serviceResolver, true);
                         } else {
                             LOG.info("Ignoring since queued for different server - race condition {}", loggingId);
                         }
@@ -658,7 +665,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 } else {
                     resultFuture.completeExceptionally(e);
                     LOG.warn("Non-retryable error, giving up: try {} failed for {}", (queuedEmail != null ? queuedEmail.getRetry() : -1), loggingId, e);
-                    removeQueuedEmail(null);
+                    archiveQueuedEmail(null, false);
                 }
             } catch (RuntimeException | Error e) {
                 LOG.warn("Unexpected exception", e);
@@ -673,22 +680,26 @@ public class EmailServiceImpl implements EmailService, Runnable {
         }
 
         /**
-         * Deletes the queued email since we are now done with it, incl. commit.
+         * Moves the queued email to the archival places or deletes it, depending on configuration.
          */
-        protected void removeQueuedEmail(ResourceResolver serviceResolver) {
+        protected void archiveQueuedEmail(ResourceResolver serviceResolver, boolean success) {
             ResourceResolver resolver = null;
             try {
                 resolver = serviceResolver != null ? serviceResolver : getServiceResolver();
                 Resource res = resolver.getResource(queuedEmailPath);
                 if (res != null) {
-                    LOG.info("Removing from email queue: {} for {}", queuedEmailPath, loggingId);
 
-                    // FIXME(hps,15.09.20) actually delete; for now we keep the thing around to look at it.
-                    QueuedEmail eml = new QueuedEmail(res);
-                    eml.setNextTry(System.currentTimeMillis() + MILLISECONDS.convert(100000, DAYS));
-                    eml.save(resolver);
+                    boolean keepMail = success ? cleanupService.keepDeliveredEmails() : cleanupService.keepFailedEmails();
+                    String basepath = success ? PATH_MAILQUEUE_DELIVERED : PATH_MAILQUEUE_FAILED;
+                    String newLocation = appendPaths(basepath, relativePath(QueuedEmail.PATH_MAILQUEUE, queuedEmailPath));
 
-                    // resolver.delete(res);
+                    if (keepMail) {
+                        LOG.info("Archiving {} to {}", loggingId, newLocation);
+                        resolver.move(queuedEmailPath, ResourceUtil.getParent(newLocation));
+                    } else {
+                        LOG.info("Removing from email queue: {} for {}", queuedEmailPath, loggingId);
+                        resolver.delete(res);
+                    }
                     resolver.commit();
                     resolver.refresh();
                 } else {
