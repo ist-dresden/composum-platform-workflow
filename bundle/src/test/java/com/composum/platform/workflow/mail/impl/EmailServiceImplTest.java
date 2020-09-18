@@ -219,8 +219,8 @@ public class EmailServiceImplTest {
         when(config.retryTime()).thenReturn(1);
         long begin = System.currentTimeMillis();
         Future<String> future = service.sendMail(email, invalidServerConfigResource);
-        for (int i = 0; i < 10 && !future.isDone(); ++i) {
-            Thread.sleep(1000);
+        for (int i = 0; i < 25 && !future.isDone(); ++i) {
+            Thread.sleep(500);
             service.run();
         }
         try {
@@ -230,7 +230,7 @@ public class EmailServiceImplTest {
             ec.checkThat(e.getCause().getMessage(), containsString("Giving up after 2 retries for"));
             long time = System.currentTimeMillis() - begin;
             ec.checkThat("" + time, time >= 4000, is(true));
-            ec.checkThat("" + time, time < 10000, is(true));
+            ec.checkThat("" + time, time < 15000, is(true));
             ec.checkThat(future.isDone(), is(true));
         }
     }
@@ -278,6 +278,43 @@ public class EmailServiceImplTest {
         pendingMails.clear();
         query.execute().forEach(pendingMails::add);
         ec.checkThat(pendingMails.size(), is(0));
+    }
+
+    /**
+     * Tests what happens when email sending is interrupted with {@link Thread#interrupt()}.
+     * It seems the email process is not interrupted.
+     */
+    // @Test
+    public void checkEmailInterruptionBehavior() throws Exception {
+        final Email email = new SimpleEmail();
+        email.setFrom("something@nothing.example.net");
+        email.setSubject("TestMail");
+        email.setMsg("This email just hangs since it has an invalid host (illegal IP).");
+        email.setTo(Collections.singletonList(new InternetAddress("somethingelse@nothing.example.net")));
+        email.setHostName("192.0.2.1");
+        email.setSocketTimeout(5000);
+        email.setSocketConnectionTimeout(5000);
+        CompletableFuture<String> future = new CompletableFuture<>();
+        SynchronousQueue<String> queue = new SynchronousQueue<>();
+        Thread t = new Thread("mailer") {
+            @Override
+            public void run() {
+                try {
+                    queue.put("wait for me");
+                    future.complete(email.send());
+                } catch (Throwable t) {
+                    future.completeExceptionally(t);
+                }
+            }
+        };
+        t.start();
+        queue.poll(1, TimeUnit.SECONDS);
+        Thread.sleep(1000); // now the thread should hang in the sending process.
+        Exception stacktrace = new Exception("Stacktrace, not thrown");
+        stacktrace.setStackTrace(t.getStackTrace());
+        stacktrace.printStackTrace();
+        t.interrupt();
+        future.get(15, TimeUnit.SECONDS);
     }
 
     protected static class TestingThreadPool extends ThreadPoolExecutor implements ThreadPool {

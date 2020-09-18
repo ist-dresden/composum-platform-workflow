@@ -305,7 +305,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
 
     protected void verifyServiceIsEnabled() throws EmailSendingException {
         if (!isEnabled()) {
-            throw new EmailSendingException("Email service is not enabled.");
+            throw new EmailSendingException("Email service is not enabled.", true);
         }
     }
 
@@ -625,9 +625,12 @@ public class EmailServiceImpl implements EmailService, Runnable {
                             Session session = emailForSession.getMailSession();
 
                             LOG.info("Processing {} retry {}", queuedEmail.getRetry(), loggingId);
+                            verifyServiceIsEnabled(); // don't send during #deactivate
                             if (!resultFuture.isDone()) {
                                 String messageId = sendEmail(queuedEmail.getMimeMessage(session), loggingId);
                                 resultFuture.complete(messageId);
+                                // preventively clear thread interruption status since it's crucial that the rest is done and we are almost done, anyway.
+                                Thread.interrupted();
                             } else { // safety check, but that must not happen.
                                 LOG.error("Bug: Future already completed? Not sending {}", loggingId);
                             }
@@ -643,37 +646,46 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 } catch (PersistenceException e) {
                     LOG.error("Bug: trouble changing queued email {}", loggingId, e);
                     throw new EmailSendingException("Bug: trouble changing queued email.");
-                } catch (EmailException e) {
+                } catch (EmailException | RuntimeException e) {
                     String logid = queuedEmail != null ? queuedEmail.getLoggingId() : queuedEmailPath;
                     throw new EmailSendingException("Exception sending " + logid, e);
                 }
             } catch (EmailSendingException e) {
                 Config conf = config;
+                boolean retry;
                 if (conf == null || !conf.enabled()) {
-                    LOG.info("Emailservice disabled -> aborting {} , might be retried later, though.", loggingId);
+                    LOG.info("Emailservice disabled in the meantime -> aborting {} , might be retried later, though.", loggingId);
                     resultFuture.completeExceptionally(new EmailSendingException("Emailservice disabled -> abort. Might be retried later, though."));
+                    retry = true;
                 } else if (e.isRetryable()) {
                     LOG.info("Try {} failed for {} because of {}", queuedEmail.getRetry(), loggingId, e.toString());
                     if (queuedEmail.getRetry() >= conf.retries()) {
                         resultFuture.completeExceptionally(
                                 new EmailSendingException("Giving up after " + queuedEmail.getRetry() + " retries for " + loggingId, e));
                         LOG.info("Giving up after {} retries for {}", queuedEmail.getRetry(), loggingId, e);
+                        retry = false;
                     } else {
-                        prepareForRetry();
+                        retry = true;
                     }
                 } else {
                     resultFuture.completeExceptionally(e);
                     LOG.warn("Non-retryable error, giving up: try {} failed for {}", (queuedEmail != null ? queuedEmail.getRetry() : -1), loggingId, e);
+                    retry = false;
+                }
+                if (retry) {
+                    prepareForRetry();
+                } else {
                     archiveQueuedEmail(null, false);
                 }
             } catch (RuntimeException e) { // Bug.
-                LOG.warn("Unexpected exception", e);
+                LOG.warn("Unexpected exception - aborting {}", loggingId, e);
                 resultFuture.completeExceptionally(e);
                 archiveQueuedEmail(null, false);
                 throw e;
             } catch (Error e) {
-                LOG.warn("Unexpected error", e);
+                LOG.warn("Unexpected error - aborting {}", loggingId, e);
                 resultFuture.completeExceptionally(e);
+                // archiveQueuedEmail(null, false); we omit that deliberately because Errors are serious and should be investigated
                 throw e;
             } finally {
                 if (resultFuture.isDone()) {
@@ -690,6 +702,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 if (queuedResource != null) {
                     QueuedEmail queuedEmail = new QueuedEmail(queuedResource);
                     queuedEmail.setState(null);
+                    queuedEmail.setRetry(queuedEmail.getRetry() + 1);
                     queuedEmail.setNextTry(System.currentTimeMillis() + retryTime(queuedEmail.getRetry()));
                     queuedEmail.update(resolver);
                     resolver.commit();

@@ -10,16 +10,27 @@ import java.net.UnknownHostException;
  */
 public class EmailSendingException extends Exception {
 
+    protected final Boolean retryable;
+
     public EmailSendingException(String message) {
         super(message);
+        retryable = false;
     }
+
+    public EmailSendingException(String message, boolean retryable) {
+        super(message);
+        this.retryable = retryable;
+    }
+
 
     public EmailSendingException(String message, Exception exception) {
         super(message, exception);
+        retryable = null; // depends on exception
     }
 
     public EmailSendingException(Exception exception) {
         super(exception);
+        retryable = null; // depends on exception
     }
 
     /**
@@ -29,9 +40,12 @@ public class EmailSendingException extends Exception {
      * temporary network failures, and might even be correctable if it was caused by a wrong email server configuration.
      */
     public boolean isRetryable() {
+        if (retryable != null) {
+            return true;
+        }
         Throwable rootCause = getRootCause();
         return rootCause instanceof SocketTimeoutException || rootCause instanceof SocketException
-                || rootCause instanceof UnknownHostException;
+                || rootCause instanceof UnknownHostException || rootCause instanceof InterruptedException;
     }
 
     /**

@@ -47,7 +47,7 @@ class QueuedEmail {
     /**
      * Location where delivered mails are saved, if so configured. Access should be allowed only for the service user.
      */
-    public static final String PATH_MAILQUEUE_DELIVERED = "/var/composum/platform/mail/queue-delivered";
+    public static final String PATH_MAILQUEUE_DELIVERED = "/var/composum/platform/mail/queue-sent";
 
     public static final String PROP_LOGGINGID = "loggingId";
     public static final String PROP_EMAIL = "email";
@@ -154,13 +154,12 @@ class QueuedEmail {
             put(mvm, ResourceUtil.JCR_LASTMODIFIED, Calendar.getInstance());
             put(mvm, PROP_QUEUED_AT, serviceId);
             int retry = mvm.get(PROP_RETRY, 0);
-            put(mvm, PROP_RETRY, retry + 1);
             long now = System.currentTimeMillis();
             Calendar nextTryCalendar = Calendar.getInstance();
-            long delay = retryTime.apply(retry + 1);
+            long delay = retryTime.apply(retry);
             nextTryCalendar.setTimeInMillis(nextTryCalendar.getTimeInMillis() + delay);
             put(mvm, PROP_NEXTTRY, nextTryCalendar);
-            LOG.info("Reserving {} - retry {} time {}", resource.getPath(), retry + 1, nextTryCalendar.getTime());
+            LOG.info("Reserving {} - retry {} time {}", resource.getPath(), retry, nextTryCalendar.getTime());
         }
     }
 

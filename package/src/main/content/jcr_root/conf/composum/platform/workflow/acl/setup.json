@@ -320,7 +320,7 @@
     ]
   },
   {
-    "path": "/var/composum/platform/mail/queue-delivered",
+    "path": "/var/composum/platform/mail/queue-sent",
     "jcr:primaryType": "sling:Folder",
     "acl": [
       {
