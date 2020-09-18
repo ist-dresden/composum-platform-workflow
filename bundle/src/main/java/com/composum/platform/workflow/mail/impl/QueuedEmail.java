@@ -47,7 +47,7 @@ class QueuedEmail {
     /**
      * Location where delivered mails are saved, if so configured. Access should be allowed only for the service user.
      */
-    public static final String PATH_MAILQUEUE_DELIVERED = "/var/composum/platform/mail/queue-sent";
+    public static final String PATH_MAILQUEUE_SENT = "/var/composum/platform/mail/queue-sent";
 
     public static final String PROP_LOGGINGID = "loggingId";
     public static final String PROP_EMAIL = "email";

@@ -52,7 +52,7 @@ public class EmailCleanupServiceImpl implements Runnable, EmailCleanupService {
             locked = lock.writeLock().tryLock(1, SECONDS);
             if (locked) {
                 cleanupFolder(QueuedEmail.PATH_MAILQUEUE_FAILED, config.keepFailedSeconds());
-                cleanupFolder(QueuedEmail.PATH_MAILQUEUE_DELIVERED, config.keepSuccessfulSeconds());
+                cleanupFolder(QueuedEmail.PATH_MAILQUEUE_SENT, config.keepSuccessfulSeconds());
             } else {
                 LOG.info("Skipping cleanup - old cleanup is still running???");
             }
@@ -67,9 +67,13 @@ public class EmailCleanupServiceImpl implements Runnable, EmailCleanupService {
     }
 
     protected void cleanupFolder(String cleanupPath, int keepSeconds) {
+        Calendar cuttime = Calendar.getInstance();
+        long cutTimeMillis = cuttime.getTimeInMillis() - keepSeconds;
+        if (cutTimeMillis < 0) { // use a large keep time to switch off cleaning
+            return;
+        }
+        cuttime.setTimeInMillis(cutTimeMillis);
         try (ResourceResolver resolver = resolverFactory.getServiceResourceResolver(null)) {
-            Calendar cuttime = Calendar.getInstance();
-            cuttime.setTimeInMillis(cuttime.getTimeInMillis() - keepSeconds);
             Query query = resolver.adaptTo(QueryBuilder.class).createQuery();
             query.path(cleanupPath).condition(
                     query.conditionBuilder().property(ResourceUtil.PROP_LAST_MODIFIED).lt().val(Calendar.getInstance())
@@ -121,12 +125,12 @@ public class EmailCleanupServiceImpl implements Runnable, EmailCleanupService {
 
         @AttributeDefinition(name = "Keep failed time",
                 description = "Number of seconds to keep emails that failed emails around. " +
-                        "If 0 we delete them immediately.")
+                        "If 0 we delete them immediately. If cleanup is not wanted, use a large number like 253370764800.")
         int keepFailedSeconds() default 86400 * 7; // 1 week
 
         @AttributeDefinition(name = "Keep successful time",
-                description = "Number of seconds to keep emails that have been successfully around." +
-                        "If 0 we delete them immediately.")
+                description = "Number of seconds to keep emails that have been successfully around. " +
+                        "If 0 we delete them immediately. If cleanup is not wanted, use a large number like 253370764800.")
         int keepSuccessfulSeconds() default 86400 * 7; // 1 week
 
     }

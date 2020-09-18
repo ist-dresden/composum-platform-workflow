@@ -724,7 +724,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 Resource res = resolver.getResource(queuedEmailPath);
                 if (res != null) {
                     boolean keepMail = success ? cleanupService.keepDeliveredEmails() : cleanupService.keepFailedEmails();
-                    String basepath = success ? PATH_MAILQUEUE_DELIVERED : PATH_MAILQUEUE_FAILED;
+                    String basepath = success ? PATH_MAILQUEUE_SENT : PATH_MAILQUEUE_FAILED;
                     String newLocation = appendPaths(basepath, relativePath(QueuedEmail.PATH_MAILQUEUE, queuedEmailPath));
 
                     if (keepMail) {
