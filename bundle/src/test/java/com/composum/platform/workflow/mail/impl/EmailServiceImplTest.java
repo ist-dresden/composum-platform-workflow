@@ -22,6 +22,7 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.threads.ThreadPool;
 import org.apache.sling.commons.threads.ThreadPoolConfig;
 import org.apache.sling.commons.threads.ThreadPoolManager;
+import org.apache.sling.tenant.Tenant;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit.SlingContext;
 import org.junit.After;
@@ -94,6 +95,9 @@ public class EmailServiceImplTest {
 
     protected BeanContext beanContext = new BeanContext.Map();
 
+    @Mock
+    protected Tenant tenant;
+
     @Before
     public void setUp() throws RepositoryException, LoginException {
         MockitoAnnotations.initMocks(this);
@@ -133,6 +137,8 @@ public class EmailServiceImplTest {
             return null;
         }).when(threadPoolManager).release(threadPool);
         service.activate(config);
+
+        when(tenant.getId()).thenReturn("thetenant");
 
         context.registerAdapter(ResourceResolver.class, QueryBuilder.class,
                 (Function) (resolver) ->
@@ -177,7 +183,7 @@ public class EmailServiceImplTest {
         email.setSubject("TestMail");
         email.setBody("This is a test impl ... :-)");
         email.setTo("broken_address");
-        service.sendMail(email, serverConfigResource);
+        service.sendMail(tenant, email, serverConfigResource);
     }
 
     @Test // (timeout = 2000)
@@ -189,7 +195,7 @@ public class EmailServiceImplTest {
         email.setTo("somethingelse@example.net");
         Throwable exception = null;
         try {
-            Future<String> future = service.sendMail(email, invalidServerConfigResource);
+            Future<String> future = service.sendMail(tenant, email, invalidServerConfigResource);
             future.get(3000, TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
             exception = e.getCause();
@@ -218,7 +224,7 @@ public class EmailServiceImplTest {
         when(config.retries()).thenReturn(2);
         when(config.retryTime()).thenReturn(1);
         long begin = System.currentTimeMillis();
-        Future<String> future = service.sendMail(email, invalidServerConfigResource);
+        Future<String> future = service.sendMail(tenant, email, invalidServerConfigResource);
         for (int i = 0; i < 25 && !future.isDone(); ++i) {
             Thread.sleep(500);
             service.run();
@@ -257,7 +263,7 @@ public class EmailServiceImplTest {
         email.setMsg("This is a test impl ... :-)");
         email.setTo(Collections.singletonList(new InternetAddress("somethingelse@example.net")));
         email.setHostName("192.0.2.1");
-        QueuedEmail queuedEmail = new QueuedEmail("234u298j9sdij9", email, "/somecfg", null);
+        QueuedEmail queuedEmail = new QueuedEmail("234u298j9sdij9", email, "/somecfg", null, "");
         queuedEmail.setNextTry(System.currentTimeMillis());
         queuedEmail.create(context.resourceResolver());
         resolver.commit();
@@ -302,8 +308,8 @@ public class EmailServiceImplTest {
                 try {
                     queue.put("wait for me");
                     future.complete(email.send());
-                } catch (Throwable t) {
-                    future.completeExceptionally(t);
+                } catch (Throwable throwable) {
+                    future.completeExceptionally(throwable);
                 }
             }
         };

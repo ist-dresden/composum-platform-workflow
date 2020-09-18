@@ -110,11 +110,11 @@ class QueuedEmail {
         state = vm.get(PROP_STATE, String.class);
     }
 
-    public QueuedEmail(@Nonnull String loggingId, @Nonnull Email email, @Nonnull String serverConfigPath, @Nullable String credentialToken) throws EmailSendingException {
+    public QueuedEmail(@Nonnull String loggingId, @Nonnull Email email, @Nonnull String serverConfigPath, @Nullable String credentialToken, @Nonnull String folder) throws EmailSendingException {
         this.loggingId = loggingId;
         this.serverConfigPath = serverConfigPath;
         this.credentialToken = credentialToken;
-        this.path = PATH_MAILQUEUE + "/" + loggingId;
+        this.path = PATH_MAILQUEUE + "/" + folder + loggingId;
         MimeMessage msg = email.getMimeMessage();
         if (msg == null) {
             try {

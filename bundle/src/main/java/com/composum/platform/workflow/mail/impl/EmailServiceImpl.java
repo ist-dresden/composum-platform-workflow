@@ -16,6 +16,7 @@ import org.apache.commons.mail.EmailException;
 import org.apache.commons.mail.SimpleEmail;
 import org.apache.sling.api.resource.*;
 import org.apache.sling.commons.threads.ThreadPoolManager;
+import org.apache.sling.tenant.Tenant;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.*;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
@@ -155,7 +156,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
 
     @Nonnull
     @Override
-    public String sendMailImmediately(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
+    public String sendMailImmediately(@Nullable Tenant tenant, @Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
         verifyServiceIsEnabled();
         String loggingId = makeLoggingId(emailBuilder, serverConfig);
         Email email = emailBuilder.buildEmail(placeholderService);
@@ -169,18 +170,20 @@ public class EmailServiceImpl implements EmailService, Runnable {
             LOG.debug("Sending with {} : {}", loggingId, emailBuilder.toString());
         }
         return sendEmail(email.getMimeMessage(), loggingId);
+        // FIXME(hps,18.09.20) archive message and use tenant for the path?
     }
 
 
     @Nonnull
     @Override
-    public Future<String> sendMail(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
+    public Future<String> sendMail(@Nullable Tenant tenant, @Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
         verifyServiceIsEnabled();
         if (serverConfig == null) {
             throw new EmailSendingException("No server configuration given");
         }
         String loggingId = makeLoggingId(emailBuilder, serverConfig);
         String credentialToken = getCredentialToken(serverConfig, loggingId);
+        String folder = tenant != null ? tenant.getId() + "/" : "";
         Email email = emailBuilder.buildEmail(placeholderService);
         initializeEmailWithServerConfig(email, serverConfig, loggingId, credentialToken);
         try {
@@ -189,9 +192,9 @@ public class EmailServiceImpl implements EmailService, Runnable {
             throw new EmailSendingException("Could not build mime message for " + loggingId, e);
         }
         if (LOG.isDebugEnabled()) {
-            LOG.debug("Queueing {} : {}", loggingId, emailBuilder.toString());
+            LOG.debug("Queueing {}{} : {}", folder, loggingId, emailBuilder.toString());
         }
-        EmailTask task = new EmailTask(email, serverConfig.getPath(), loggingId, credentialToken);
+        EmailTask task = new EmailTask(email, serverConfig.getPath(), loggingId, credentialToken, folder);
         task.currentTry = executorService.submit(task::trySending);
         inProcess.put(task.queuedEmailPath, task);
         Future<String> future = task.resultFuture;
@@ -577,9 +580,9 @@ public class EmailServiceImpl implements EmailService, Runnable {
 
         protected final String queuedEmailPath;
 
-        public EmailTask(@Nonnull Email email, @Nonnull String serverConfigPath, @Nonnull String loggingId, @Nullable String credentialToken) throws EmailSendingException {
+        public EmailTask(@Nonnull Email email, @Nonnull String serverConfigPath, @Nonnull String loggingId, @Nullable String credentialToken, @Nonnull String folder) throws EmailSendingException {
             this.loggingId = loggingId;
-            QueuedEmail queuedEmail = new QueuedEmail(loggingId, email, serverConfigPath, credentialToken);
+            QueuedEmail queuedEmail = new QueuedEmail(loggingId, email, serverConfigPath, credentialToken, folder);
             queuedEmailPath = queuedEmail.getPath(); // FIXME(hps,10.09.20) tenant?
             queuedEmail.setNextTry(System.currentTimeMillis() + MILLISECONDS.convert(config.retryTime(), SECONDS));
             queuedEmail.setQueuedAt(serviceId);
@@ -735,8 +738,14 @@ public class EmailServiceImpl implements EmailService, Runnable {
                         queuedEmail.update(resolver);
                         resolver.commit();
                         resolver.refresh();
+
+                        String dir = ResourceUtil.getParent(newLocation);
+                        if (!StringUtils.startsWith(dir, basepath)) {
+                            throw new IllegalArgumentException("Something's wrong with archive location " + newLocation + " for " + loggingId);
+                        }
+                        ResourceUtil.getOrCreateResource(resolver, dir);
                         LOG.info("Archiving {} to {}", loggingId, newLocation);
-                        resolver.move(queuedEmailPath, ResourceUtil.getParent(newLocation));
+                        resolver.move(queuedEmailPath, dir);
                     } else {
                         LOG.info("Removing from email queue: {} for {}", queuedEmailPath, loggingId);
                         resolver.delete(res);
@@ -746,7 +755,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 } else {
                     LOG.warn("Bug: queued email not present anymore for {}", loggingId);
                 }
-            } catch (EmailSendingException | PersistenceException e) {
+            } catch (EmailSendingException | PersistenceException | RepositoryException e) {
                 LOG.error("Exception removing queued email for {} at {}", loggingId, queuedEmailPath, e);
                 resultFuture.completeExceptionally(e);
             } finally {

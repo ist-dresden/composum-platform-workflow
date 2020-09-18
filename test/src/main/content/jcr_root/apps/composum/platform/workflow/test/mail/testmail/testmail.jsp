@@ -4,6 +4,8 @@
 <%@ page import="org.apache.sling.api.resource.Resource" %>
 <%@ page import="java.util.concurrent.Future" %>
 <%@ page import="java.util.concurrent.TimeUnit" %>
+<%@ page import="org.apache.sling.tenant.Tenant" %>
+<%@ page import="java.util.Iterator" %>
 <%@page session="false" pageEncoding="UTF-8" %>
 <%@taglib prefix="sling" uri="http://sling.apache.org/taglibs/sling/1.2" %>
 <%@taglib prefix="cpn" uri="http://sling.composum.com/cpnl/1.0" %>
@@ -22,6 +24,37 @@ Mailing now.
     // email.addPlaceholder( "X", "is this");
     email.addPlaceholder("B", "-BVALUE-");
     email.addPlaceholder("S", "-SVALUE-");
-    Future<String> result = service.sendMail(email, serverConfigResource);
+    Tenant tenant = new Tenant() {
+        @Override
+        public String getId() {
+            return "thetenant";
+        }
+
+        @Override
+        public String getName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getDescription() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object getProperty(String name) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <Type> Type getProperty(String name, Type type) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterator<String> getPropertyNames() {
+            throw new UnsupportedOperationException();
+        }
+    };
+    Future<String> result = service.sendMail(tenant, email, serverConfigResource);
 %>
 Sent template - the result <%= result.get(120000, TimeUnit.SECONDS) %>
