@@ -12,7 +12,10 @@ import com.composum.sling.platform.staging.query.QueryBuilder;
 import com.composum.sling.platform.staging.query.impl.QueryBuilderAdapterFactory;
 import com.composum.sling.platform.testing.testutil.ErrorCollectorAlwaysPrintingFailures;
 import com.composum.sling.platform.testing.testutil.JcrTestUtils;
+import com.composum.sling.platform.testing.testutil.junitcategory.SlowTest;
+import com.composum.sling.platform.testing.testutil.junitcategory.TimingSensitive;
 import com.google.common.base.Function;
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.mail.Email;
 import org.apache.commons.mail.SimpleEmail;
 import org.apache.sling.api.resource.LoginException;
@@ -25,10 +28,12 @@ import org.apache.sling.commons.threads.ThreadPoolManager;
 import org.apache.sling.tenant.Tenant;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit.SlingContext;
+import org.jetbrains.annotations.Nullable;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.mockito.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,12 +44,10 @@ import javax.mail.PasswordAuthentication;
 import javax.mail.internet.InternetAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -86,6 +89,9 @@ public class EmailServiceImplTest {
 
     @Mock
     protected EmailServiceImpl.Config config;
+
+    @Mock
+    protected EmailCleanupService emailCleanupService;
 
     @Spy
     protected PlaceholderService placeholderService = new PlaceholderServiceImpl();
@@ -140,11 +146,14 @@ public class EmailServiceImplTest {
 
         when(tenant.getId()).thenReturn("thetenant");
 
+        when(emailCleanupService.keepDeliveredEmails()).thenReturn(true);
+        when(emailCleanupService.keepFailedEmails()).thenReturn(true);
+
         context.registerAdapter(ResourceResolver.class, QueryBuilder.class,
                 (Function) (resolver) ->
                         new QueryBuilderAdapterFactory().getAdapter(resolver, QueryBuilder.class));
 
-        LOG.info("Current time: {}", System.currentTimeMillis());
+        LOG.info("Test start time: {} = {}", System.currentTimeMillis(), new Date());
 
     }
 
@@ -162,6 +171,7 @@ public class EmailServiceImplTest {
 
     @After
     public void tearDown() {
+        LOG.info("Test stop time: {} = {}", System.currentTimeMillis(), new Date());
         service.deactivate();
         if (!threadPool.isShutdown()) {
             threadPool.shutdownNow();
@@ -196,7 +206,7 @@ public class EmailServiceImplTest {
         Throwable exception = null;
         try {
             Future<String> future = service.sendMail(tenant, email, invalidServerConfigResource);
-            future.get(3000, TimeUnit.MILLISECONDS);
+            future.get(3000, MILLISECONDS);
         } catch (ExecutionException e) {
             exception = e.getCause();
         } catch (EmailSendingException e) {
@@ -215,6 +225,7 @@ public class EmailServiceImplTest {
     }
 
     @Test // (timeout = 12000)
+    @Category({SlowTest.class, TimingSensitive.class})
     public void retries() throws Throwable {
         EmailBuilder email = new EmailBuilder(beanContext, null);
         email.setFrom("something@example.net");
@@ -230,7 +241,7 @@ public class EmailServiceImplTest {
             service.run();
         }
         try {
-            future.get(20000, TimeUnit.MILLISECONDS);
+            future.get(20000, MILLISECONDS);
             fail("Failure expected");
         } catch (ExecutionException e) {
             ec.checkThat(e.getCause().getMessage(), containsString("Giving up after 2 retries for"));
@@ -239,6 +250,64 @@ public class EmailServiceImplTest {
             ec.checkThat("" + time, time < 15000, is(true));
             ec.checkThat(future.isDone(), is(true));
         }
+    }
+
+    @Test // (timeout = 2000)
+    public void cancelingImmediately() throws Throwable {
+        EmailBuilder email = new EmailBuilder(beanContext, null);
+        email.setFrom("something@example.net");
+        email.setSubject("TestMail");
+        email.setBody("This is a test impl ... :-)");
+        email.setTo("somethingelse@example.net");
+        when(config.retries()).thenReturn(2);
+        when(config.retryTime()).thenReturn(1);
+        Future<String> future = service.sendMail(null, email, invalidServerConfigResource);
+        future.cancel(true);
+        LOG.info("Canceled.");
+        ec.checkFailsWith(future::get, instanceOf(CancellationException.class));
+        Thread.sleep(1500); // await failed connect attempt in the background
+        LOG.info("Current time: {} = {}", System.currentTimeMillis(), new Date());
+        ec.checkThat(context.resourceResolver().getResource(QueuedEmail.PATH_MAILQUEUE_FAILED).getChildren(), iterableWithSize(1));
+    }
+
+
+    @Test // (timeout = 2000)
+    @Category({SlowTest.class, TimingSensitive.class})
+    public void canceling() throws Throwable {
+        EmailBuilder email = new EmailBuilder(beanContext, null);
+        email.setFrom("something@example.net");
+        email.setSubject("TestMail");
+        email.setBody("This is a test impl ... :-)");
+        email.setTo("somethingelse@example.net");
+        when(config.retries()).thenReturn(3);
+        when(config.retryTime()).thenReturn(1);
+        Future<String> future = service.sendMail(tenant, email, invalidServerConfigResource);
+        Thread.sleep(1500); // wait until first attempt is done and email is in retry
+        future.cancel(false);
+        LOG.info("Canceled.");
+        ec.checkFailsWith(() -> future.get(1, MILLISECONDS), instanceOf(CancellationException.class));
+        boolean emailInFailedQueue = false;
+        for (int i = 0; i < 4 && !emailInFailedQueue; ++i) {
+            Thread.sleep(500);
+            service.run();
+            Resource failedQueue = context.resourceResolver().getResource(QueuedEmail.PATH_MAILQUEUE_FAILED);
+            emailInFailedQueue = failedQueue != null && IteratorUtils.toArray(failedQueue.listChildren()).length == 1;
+        }
+        LOG.info("Check time: {} = {}", System.currentTimeMillis(), new Date());
+        ec.checkThat(emailInFailedQueue, is(true));
+    }
+
+    @Test(expected = CancellationException.class)
+    public void checkFutureCancelingBehaviour() throws ExecutionException, InterruptedException {
+        CompletableFuture<String> future = new CompletableFuture<>();
+        try {
+            future.cancel(true);
+        } catch (Throwable t) {
+            t.printStackTrace();
+            fail("Cancel should not throw up.");
+        }
+        future.get();
+        // Interesting: this throws a CancellationException created at the cancel call - the stacktrace when calling the get is lost!
     }
 
     @Test

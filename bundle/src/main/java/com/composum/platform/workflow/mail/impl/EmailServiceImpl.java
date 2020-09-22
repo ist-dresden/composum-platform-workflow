@@ -158,7 +158,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
     @Override
     public String sendMailImmediately(@Nullable Tenant tenant, @Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
         verifyServiceIsEnabled();
-        String loggingId = makeLoggingId(emailBuilder, serverConfig);
+        String loggingId = makeLoggingId(emailBuilder, serverConfig, tenant);
         Email email = emailBuilder.buildEmail(placeholderService);
         initializeEmailWithServerConfig(email, serverConfig, loggingId, null);
         try {
@@ -181,7 +181,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
         if (serverConfig == null) {
             throw new EmailSendingException("No server configuration given");
         }
-        String loggingId = makeLoggingId(emailBuilder, serverConfig);
+        String loggingId = makeLoggingId(emailBuilder, serverConfig, tenant);
         String credentialToken = getCredentialToken(serverConfig, loggingId);
         String folder = tenant != null ? tenant.getId() + "/" : "";
         Email email = emailBuilder.buildEmail(placeholderService);
@@ -213,9 +213,10 @@ public class EmailServiceImpl implements EmailService, Runnable {
      * Creates an id that is put into all logging messages to ensure we can identify all messages belonging to an email, which would be impossible otherwise since it's run in several threads.
      */
     @Nonnull
-    protected String makeLoggingId(EmailBuilder emailBuilder, Resource serverConfig) {
+    protected String makeLoggingId(@Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig, @Nullable Tenant tenant) {
         String id = RandomStringUtils.random(10, 0, 0, true, true, null, random);
-        LOG.info("Assigning logId {} to {} with servercfg {}", id, emailBuilder.describeForLogging(), serverConfig.getPath());
+        String tenantId = tenant != null ? tenant.getId() : null;
+        LOG.info("Assigning logId {} to {} tenant {} with servercfg {}", id, emailBuilder.describeForLogging(), tenantId, serverConfig.getPath());
         return id;
     }
 
@@ -517,6 +518,9 @@ public class EmailServiceImpl implements EmailService, Runnable {
      * The time delay for the next retry in milliseconds.
      */
     protected long retryTime(int retry) {
+        if (config == null) {
+            throw new IllegalStateException();
+        }
         return (long) (Math.pow(2, retry) * MILLISECONDS.convert(config.retryTime(), SECONDS));
     }
 
@@ -629,16 +633,20 @@ public class EmailServiceImpl implements EmailService, Runnable {
 
                             LOG.info("Processing {} retry {}", queuedEmail.getRetry(), loggingId);
                             verifyServiceIsEnabled(); // don't send during #deactivate
-                            if (!resultFuture.isDone()) {
+                            if (!resultFuture.isDone()) { // checks for outside events that abort us
                                 String messageId = sendEmail(queuedEmail.getMimeMessage(session), loggingId);
                                 resultFuture.complete(messageId);
                                 // preventively clear thread interruption status since it's crucial that the rest is done and we are almost done, anyway.
                                 Thread.interrupted();
+                                archiveQueuedEmail(serviceResolver, true);
+                            } else if (resultFuture.isCancelled()) { // special case of done. Move to failed.
+                                LOG.info("Was cancelled from outside - archiving to failed.");
+                                archiveQueuedEmail(serviceResolver, false);
                             } else { // safety check, but that must not happen.
                                 LOG.error("Bug: Future already completed? Not sending {}", loggingId);
+                                archiveQueuedEmail(serviceResolver, false); // nothing sensible to do.
                             }
 
-                            archiveQueuedEmail(serviceResolver, true);
                         } else {
                             LOG.info("Ignoring since queued for different server - race condition {}", loggingId);
                         }
@@ -660,7 +668,10 @@ public class EmailServiceImpl implements EmailService, Runnable {
                     LOG.info("Emailservice disabled in the meantime -> aborting {} , might be retried later, though.", loggingId);
                     resultFuture.completeExceptionally(new EmailSendingException("Emailservice disabled -> abort. Might be retried later, though."));
                     retry = true;
-                } else if (e.isRetryable()) {
+                } else if (resultFuture.isCancelled()) {
+                    LOG.info("Was cancelled from outside - archiving to failed.");
+                    retry = false;
+                } else if (e.isRetryable() && !resultFuture.isDone()) {
                     LOG.info("Try {} failed for {} because of {}", queuedEmail.getRetry(), loggingId, e.toString());
                     if (queuedEmail.getRetry() >= conf.retries()) {
                         resultFuture.completeExceptionally(

@@ -24,6 +24,7 @@ public interface EmailService {
 
     /**
      * Sends an email asynchronously. If you need it done synchronously, please use {@link #sendMailImmediately(EmailBuilder, Resource)}.
+     * The mail is saved in the mail queue in the JCR.
      *
      * @param tenant       optionally, the tenant on behalf of which the email is sent. This is only used for the path where the email is queued.
      * @param email        the content of the email
@@ -34,8 +35,8 @@ public interface EmailService {
     Future<String> sendMail(@Nullable Tenant tenant, @Nonnull EmailBuilder email, @Nonnull Resource serverConfig) throws EmailSendingException;
 
     /**
-     * Sends an email immediately, returning only when it's sent successfully, or an exception occurred.
-     * No retries are done.
+     * Sends an email immediately without any retries, returning only when it's sent successfully, or an exception occurred.
+     * Unlike {@link #sendMail(Tenant, EmailBuilder, Resource)} this method does not save the email in the JCR.
      *
      * @param tenant       optionally, the tenant on behalf of which the email is sent. This is only used for the path where the email is stored.
      * @param email        the content of the email
