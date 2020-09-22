@@ -204,7 +204,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
         } catch (ExecutionException e) {
             throw wrapAndThrowException(e.getCause());
         } catch (TimeoutException | InterruptedException e) { //
-            LOG.debug("Ignored for {} : {} ", loggingId, e.toString());
+            LOG.debug("Ignored quick try timeout for {} : {} ", loggingId, e.toString());
         }
         return future;
     }
@@ -566,10 +566,16 @@ public class EmailServiceImpl implements EmailService, Runnable {
         protected final CompletableFuture<String> resultFuture = new CompletableFuture<>() {
             @Override
             public boolean cancel(boolean mayInterruptIfRunning) {
+                LOG.info("Cancelling from outside: {}", loggingId);
                 if (currentTry != null) {
                     currentTry.cancel(mayInterruptIfRunning);
                 }
-                return super.cancel(mayInterruptIfRunning);
+                try {
+                    return super.cancel(mayInterruptIfRunning);
+                } finally { // move to failed.
+                    // FIXME(hps,22.09.20) might be dangerous if the mail is currently in work :-(
+                    archiveQueuedEmail(null, false);
+                }
             }
         };
 

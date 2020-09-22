@@ -266,8 +266,18 @@ public class EmailServiceImplTest {
         LOG.info("Canceled.");
         ec.checkFailsWith(future::get, instanceOf(CancellationException.class));
         Thread.sleep(1500); // await failed connect attempt in the background
-        LOG.info("Current time: {} = {}", System.currentTimeMillis(), new Date());
-        ec.checkThat(context.resourceResolver().getResource(QueuedEmail.PATH_MAILQUEUE_FAILED).getChildren(), iterableWithSize(1));
+        // If there is no network it's possible that the first try was done before we got to cancel the future.
+        // in that case we have to offer a retry. If the network was there, the future is cancelled before
+        // the first delivery attempt is finished.
+        boolean emailInFailedQueue = false;
+        for (int i = 0; i < 4 && !emailInFailedQueue; ++i) {
+            Thread.sleep(500);
+            service.run();
+            Resource failedQueue = context.resourceResolver().getResource(QueuedEmail.PATH_MAILQUEUE_FAILED);
+            emailInFailedQueue = failedQueue != null && IteratorUtils.toArray(failedQueue.listChildren()).length == 1;
+        }
+        LOG.info("Check time: {} = {}", System.currentTimeMillis(), new Date());
+        ec.checkThat(emailInFailedQueue, is(true));
     }
 
 
