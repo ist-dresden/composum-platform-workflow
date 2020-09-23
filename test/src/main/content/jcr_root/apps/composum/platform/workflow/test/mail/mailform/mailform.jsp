@@ -40,6 +40,14 @@
             ).and().property(ResourceUtil.PROP_RESOURCE_TYPE).eq().val("composum/platform/workflow/components/mail/mailserverconfig")
     );
     List<String> serverConfigs = query.stream().map(Resource::getPath).collect(Collectors.toList());
+
+    Query templateQuery = resourceResolver.adaptTo(QueryBuilder.class).createQuery();
+    templateQuery.path("/").condition(
+            templateQuery.conditionBuilder().group(
+                    (g) -> g.isDescendantOf("/conf").or().isDescendantOf("/var").or().isDescendantOf("/content").or().isDescendantOf("/etc")
+            ).and().property(ResourceUtil.PROP_RESOURCE_TYPE).eq().val("composum/platform/workflow/components/mail/emailtemplate")
+    );
+    List<String> templates = templateQuery.stream().map(Resource::getPath).collect(Collectors.toList());
 %>
 <div class="modal-content form-panel default">
     <%-- for debugging: action = /apps/ist/composum/testpages/debug.misc.html --%>
@@ -64,25 +72,35 @@
                 </div>
                 <% } %>
             </div>
+
             <div class="form-group subtype">
                 <label class="control-label">Email server configuration (*)</label>
-                <select name="serverConfig" class="subtype-select widget select-widget form-control"
-                        style="visibility: visible;">
+                <select name="serverConfig" class="subtype-select widget select-widget form-control">
                     <% for (String serverConfig : serverConfigs) { %>
                     <option value=<%= serverConfig %>><%= serverConfig%>
                     </option>
                     <% } %>
                 </select>
             </div>
-            <div class="form-group">
-                <label class="control-label">From (*)</label>
-                <input name="from" class="widget property-name-widget form-control" type="text"
-                       placeholder="Sender of the email" data-rules="mandatory">
+            <div class="form-group subtype">
+                <label class="control-label">Email template</label>
+                <select name="template" class="subtype-select widget select-widget form-control">
+                    <option value="" selected></option>
+                    <% for (String template : templates) { %>
+                    <option value=<%= template %>><%= template%>
+                    </option>
+                    <% } %>
+                </select>
             </div>
             <div class="form-group">
-                <label class="control-label">To (*)</label>
+                <label class="control-label">From</label>
+                <input name="from" class="widget property-name-widget form-control" type="text"
+                       placeholder="Sender of the email">
+            </div>
+            <div class="form-group">
+                <label class="control-label">To</label>
                 <input name="to" class="widget property-name-widget form-control" type="text"
-                       placeholder="Receiver of the email" data-rules="mandatory">
+                       placeholder="Receiver of the email">
             </div>
             <div class="form-group">
                 <label class="control-label">CC</label>
@@ -105,9 +123,9 @@
                        placeholder="Bounce address of the email">
             </div>
             <div class="form-group">
-                <label class="control-label">Subject (*)</label>
+                <label class="control-label">Subject</label>
                 <input name="subject" class="widget property-name-widget form-control" type="text"
-                       placeholder="Subject of the email" data-rules="mandatory">
+                       placeholder="Subject of the email">
             </div>
             <div class="form-group">
                 <label class="control-label">Text</label>
@@ -121,6 +139,57 @@
                           class="plaintext property-type-plaintext widget text-area-widget form-control"
                           rows="4"></textarea>
             </div>
+
+            <!-- Some placeholders -->
+            <div class="row">
+                <div class="col-lg-3 col-md-3 col-sm-3 col-xs-3">
+                    <div class="form-group subtype">
+                        <label class="control-label">Placeholder 1 name</label>
+                        <input name="pl1name" class="widget property-name-widget form-control" type="text"
+                               placeholder="Name of first placeholder">
+                    </div>
+                </div>
+                <div class="col-lg-9 col-md-9 col-sm-9 col-xs-9">
+                    <div class="form-group subtype">
+                        <label class="control-label">Placeholder 1 value</label>
+                        <input name="pl1value" class="widget property-name-widget form-control" type="text"
+                               placeholder="Value of first placeholder">
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-lg-3 col-md-3 col-sm-3 col-xs-3">
+                    <div class="form-group subtype">
+                        <label class="control-label">Placeholder 2 name</label>
+                        <input name="pl2name" class="widget property-name-widget form-control" type="text"
+                               placeholder="Name of second placeholder">
+                    </div>
+                </div>
+                <div class="col-lg-9 col-md-9 col-sm-9 col-xs-9">
+                    <div class="form-group subtype">
+                        <label class="control-label">Placeholder 2 value</label>
+                        <input name="pl2value" class="widget property-name-widget form-control" type="text"
+                               placeholder="Value of second placeholder">
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-lg-3 col-md-3 col-sm-3 col-xs-3">
+                    <div class="form-group subtype">
+                        <label class="control-label">Placeholder 3 name</label>
+                        <input name="pl3name" class="widget property-name-widget form-control" type="text"
+                               placeholder="Name of third placeholder">
+                    </div>
+                </div>
+                <div class="col-lg-9 col-md-9 col-sm-9 col-xs-9">
+                    <div class="form-group subtype">
+                        <label class="control-label">Placeholder 3 value</label>
+                        <input name="pl3value" class="widget property-name-widget form-control" type="text"
+                               placeholder="Value of third placeholder">
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <div class="modal-footer buttons">

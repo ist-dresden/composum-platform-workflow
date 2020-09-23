@@ -26,6 +26,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.apache.commons.collections.CollectionUtils.isNotEmpty;
+import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
 /**
@@ -78,6 +79,7 @@ public class EmailBuilder {
 
     @Nonnull
     public Email buildEmail(@Nonnull PlaceholderService placeholderService) throws EmailSendingException {
+        cleanupOverridingProperties();
         List<FileHandle> attachments = retrieveAttachments();
         try {
             Email email;
@@ -91,11 +93,20 @@ public class EmailBuilder {
                 }
                 htmlEmail.setHtmlMsg(html);
                 email = htmlEmail;
-            } else if (haveAttachments) {
-                email = new MultiPartEmail();
+                if (isBlank(body) && isBlank(html)) {
+                    throw new EmailSendingException("No body.");
+                }
             } else {
-                email = new SimpleEmail();
-                email.setMsg(body);
+                if (haveAttachments) {
+                    email = new MultiPartEmail();
+                } else {
+                    email = new SimpleEmail();
+                }
+                if (isNotBlank(body)) {
+                    email.setMsg(body);
+                } else {
+                    throw new EmailSendingException("No body.");
+                }
             }
             if (haveAttachments) {
                 MultiPartEmail multipartMail = (MultiPartEmail) email;
@@ -134,6 +145,27 @@ public class EmailBuilder {
         } catch (Exception e) {
             throw new EmailSendingException(e);
         }
+    }
+
+    /**
+     * Remove empty strings.
+     */
+    protected void cleanupOverridingProperties() {
+        Map<String, Object> cleaned = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : overridingProperties.entrySet()) {
+            if (entry.getValue() instanceof String && StringUtils.isNotBlank((String) entry.getValue())) {
+                cleaned.put(entry.getKey(), entry.getValue());
+            } else if (entry.getValue() instanceof String[] && ((String[]) entry.getValue()).length > 0) {
+                String[] cleanedArray = Arrays.asList((String[]) entry.getValue()).stream()
+                        .filter(StringUtils::isNotBlank)
+                        .toArray(String[]::new);
+                if (cleanedArray.length > 0) {
+                    cleaned.put(entry.getKey(), cleanedArray);
+                }
+            }
+        }
+        overridingProperties.clear();
+        overridingProperties.putAll(cleaned);
     }
 
     protected void attach(FileHandle fileHandle, MultiPartEmail email) throws EmailException {
