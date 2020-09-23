@@ -29,7 +29,7 @@ public interface EmailService {
      * @param tenant       optionally, the tenant on behalf of which the email is sent. This is only used for the path where the email is queued.
      * @param email        the content of the email
      * @param serverConfig the resource containing the configuration of the email server
-     * @return a future with the message-ID. Caution: this is not 100% reliable - the email might be processed on a different host after a retry.
+     * @return a future with the message-ID. Caution: this is not 100% reliable - the email might be processed on a different host after a retry. If {@link Future#cancel(boolean)} is called, we try to abort the mail sending, but this is not 100% reliable.
      */
     @Nonnull
     Future<String> sendMail(@Nullable Tenant tenant, @Nonnull EmailBuilder email, @Nonnull Resource serverConfig) throws EmailSendingException;

@@ -1,5 +1,6 @@
 package com.composum.platform.workflow.mail.impl;
 
+import com.composum.platform.workflow.mail.EmailBuilder;
 import com.composum.platform.workflow.mail.EmailSendingException;
 import com.composum.sling.core.util.ResourceUtil;
 import org.apache.commons.io.IOUtils;
@@ -10,6 +11,7 @@ import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ValueMap;
+import org.apache.sling.tenant.Tenant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,13 +66,22 @@ class QueuedEmail {
      */
     public static final String STATE_SENT = "sent";
     /**
-     * Value for {@link #PROP_STATE} that says that sending the mail failed.
+     * Value for {@link #PROP_STATE} that says that sending the mail failed, e.g. because the relay wasn't available
+     * or the email content being broken.
      */
     public static final String STATE_FAILED = "failed";
     /**
      * Value for {@link #PROP_STATE} that says that the mail is in the queue of the corresponding cluster.
      */
     public static final String STATE_RESERVED = "reserved";
+    /**
+     * Value for {@link #PROP_STATE} that says that the mail sending was aborted by a {@link java.util.concurrent.Future#cancel(boolean)} on the future returned by {@link com.composum.platform.workflow.mail.EmailService#sendMail(Tenant, EmailBuilder, Resource)}.
+     */
+    public static final String STATE_CANCELLED = "cancelled";
+    /**
+     * Value for {@link #PROP_STATE} that says that sending the mail failed due to some internal error that should be investigated.
+     */
+    public static final String STATE_INTERNAL_ERROR = "internalError";
 
     /**
      * A special value for {@link #getNextTry()} that says "never retry". Prevents it being found by the

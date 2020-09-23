@@ -344,12 +344,17 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 locked = lock.writeLock().tryLock(1, SECONDS);
             } catch (InterruptedException e) {
                 // ignore
-            } finally {
+            }
+            try {
                 reservedQueueEntries.clear();
                 for (EmailTask task : inProcess.values()) {
                     task.resultFuture.completeExceptionally(new EmailStillNotSentException("Service shut down for " + task.loggingId));
                 }
                 inProcess.clear();
+            } finally {
+                if (locked) {
+                    lock.writeLock().unlock();
+                }
             }
         } catch (RuntimeException e) {
             LOG.error("Error during deactivation", e);
@@ -574,7 +579,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
                     return super.cancel(mayInterruptIfRunning);
                 } finally { // move to failed.
                     // FIXME(hps,22.09.20) might be dangerous if the mail is currently in work :-(
-                    archiveQueuedEmail(null, false);
+                    archiveQueuedEmail(null, false, STATE_CANCELLED);
                 }
             }
         };
@@ -644,13 +649,13 @@ public class EmailServiceImpl implements EmailService, Runnable {
                                 resultFuture.complete(messageId);
                                 // preventively clear thread interruption status since it's crucial that the rest is done and we are almost done, anyway.
                                 Thread.interrupted();
-                                archiveQueuedEmail(serviceResolver, true);
+                                archiveQueuedEmail(serviceResolver, true, STATE_SENT);
                             } else if (resultFuture.isCancelled()) { // special case of done. Move to failed.
                                 LOG.info("Was cancelled from outside - archiving to failed.");
-                                archiveQueuedEmail(serviceResolver, false);
+                                archiveQueuedEmail(serviceResolver, false, STATE_CANCELLED);
                             } else { // safety check, but that must not happen.
                                 LOG.error("Bug: Future already completed? Not sending {}", loggingId);
-                                archiveQueuedEmail(serviceResolver, false); // nothing sensible to do.
+                                archiveQueuedEmail(serviceResolver, false, STATE_INTERNAL_ERROR); // nothing sensible to do.
                             }
 
                         } else {
@@ -695,12 +700,12 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 if (retry) {
                     prepareForRetry();
                 } else {
-                    archiveQueuedEmail(null, false);
+                    archiveQueuedEmail(null, false, STATE_FAILED);
                 }
             } catch (RuntimeException e) { // Bug.
                 LOG.warn("Unexpected exception - aborting {}", loggingId, e);
                 resultFuture.completeExceptionally(e);
-                archiveQueuedEmail(null, false);
+                archiveQueuedEmail(null, false, STATE_INTERNAL_ERROR);
                 throw e;
             } catch (Error e) {
                 LOG.warn("Unexpected error - aborting {}", loggingId, e);
@@ -737,7 +742,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
         /**
          * Moves the queued email to the archival places or deletes it, depending on configuration.
          */
-        protected void archiveQueuedEmail(ResourceResolver serviceResolver, boolean success) {
+        protected void archiveQueuedEmail(@Nullable ResourceResolver serviceResolver, boolean success, @Nonnull String state) {
             ResourceResolver resolver = null;
             try {
                 resolver = serviceResolver != null ? serviceResolver : getServiceResolver();
@@ -749,8 +754,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
 
                     if (keepMail) {
                         QueuedEmail queuedEmail = new QueuedEmail(res);
-                        String newState = success ? STATE_SENT : STATE_FAILED;
-                        queuedEmail.setState(newState);
+                        queuedEmail.setState(state);
                         queuedEmail.setNextTry(NEXTTRY_NEVER);
                         queuedEmail.update(resolver);
                         resolver.commit();
