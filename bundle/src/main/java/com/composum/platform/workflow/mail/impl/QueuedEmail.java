@@ -93,7 +93,7 @@ class QueuedEmail {
     protected final String loggingId;
     protected final byte[] messageBytes;
     protected final String serverConfigPath;
-    protected final String credentialToken;
+    protected String credentialToken;
     protected final Long modified;
     protected int retry;
     protected long nextTry;
@@ -240,6 +240,10 @@ class QueuedEmail {
 
     public String getCredentialToken() {
         return credentialToken;
+    }
+
+    public void setCredentialToken(String credentialToken) {
+        this.credentialToken = credentialToken;
     }
 
     public int getRetry() {

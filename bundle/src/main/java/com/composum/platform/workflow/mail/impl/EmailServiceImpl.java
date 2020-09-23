@@ -756,6 +756,9 @@ public class EmailServiceImpl implements EmailService, Runnable {
                         QueuedEmail queuedEmail = new QueuedEmail(res);
                         queuedEmail.setState(state);
                         queuedEmail.setNextTry(NEXTTRY_NEVER);
+                        if (success) {
+                            queuedEmail.setCredentialToken(null); // this is sensitive data and won't be needed again.
+                        }
                         queuedEmail.update(resolver);
                         resolver.commit();
                         resolver.refresh();

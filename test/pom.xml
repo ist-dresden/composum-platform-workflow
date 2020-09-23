@@ -84,6 +84,11 @@
 
         <dependency>
             <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-staging-bundle</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.composum.platform</groupId>
             <artifactId>composum-platform-workflow-bundle</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -106,6 +111,15 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-email</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>javax.jcr</groupId>
+            <artifactId>jcr</artifactId>
         </dependency>
 
     </dependencies>

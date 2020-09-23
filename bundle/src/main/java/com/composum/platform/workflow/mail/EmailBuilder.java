@@ -162,11 +162,13 @@ public class EmailBuilder {
         List<InternetAddress> adrs = new ArrayList<>();
         if (null != values && values.length > 0) {
             for (String value : values) {
-                try {
-                    adrs.add(new InternetAddress(value));
-                } catch (AddressException e) {
-                    LOG.warn("Could not convert adress {} for {}", value, template, e);
-                    throw new EmailSendingException("Could not convert adress for " + template, e);
+                if (StringUtils.isNotBlank(value)) {
+                    try {
+                        adrs.add(new InternetAddress(value));
+                    } catch (AddressException e) {
+                        LOG.warn("Could not convert adress {} for {}", value, template, e);
+                        throw new EmailSendingException("Could not convert adress for " + template, e);
+                    }
                 }
             }
         }
