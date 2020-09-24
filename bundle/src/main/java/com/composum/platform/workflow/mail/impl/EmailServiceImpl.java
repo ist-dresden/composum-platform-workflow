@@ -33,6 +33,7 @@ import javax.mail.MessagingException;
 import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.MimeMessage;
+import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.*;
@@ -156,11 +157,15 @@ public class EmailServiceImpl implements EmailService, Runnable {
 
     @Nonnull
     @Override
-    public String sendMailImmediately(@Nullable Tenant tenant, @Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
+    public String sendMailImmediately(@Nullable Tenant tenant, @Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfigResource) throws EmailSendingException {
         verifyServiceIsEnabled();
-        String loggingId = makeLoggingId(emailBuilder, serverConfig, tenant);
+        if (serverConfigResource == null) {
+            throw new IllegalArgumentException("No email server configuration given");
+        }
+        String loggingId = makeLoggingId(emailBuilder, serverConfigResource, tenant);
         Email email = emailBuilder.buildEmail(placeholderService);
-        initializeEmailWithServerConfig(email, serverConfig, loggingId, null);
+        EmailServerConfigModel serverConfig = new EmailServerConfigModel(serverConfigResource);
+        initializeEmailWithServerConfig(email, serverConfig, loggingId);
         try {
             email.buildMimeMessage();
         } catch (EmailException e) {
@@ -169,23 +174,24 @@ public class EmailServiceImpl implements EmailService, Runnable {
         if (LOG.isDebugEnabled()) {
             LOG.debug("Sending with {} : {}", loggingId, emailBuilder.toString());
         }
-        return sendEmail(email.getMimeMessage(), loggingId);
-        // FIXME(hps,18.09.20) archive message and use tenant for the path?
+        return sendEmail(email.getMimeMessage(), loggingId, serverConfig.getCredentialId());
     }
 
 
     @Nonnull
     @Override
-    public Future<String> sendMail(@Nullable Tenant tenant, @Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfig) throws EmailSendingException {
+    public Future<String> sendMail(@Nullable Tenant tenant, @Nonnull EmailBuilder emailBuilder, @Nonnull Resource serverConfigResource) throws EmailSendingException {
         verifyServiceIsEnabled();
-        if (serverConfig == null) {
+        if (serverConfigResource == null) {
             throw new EmailSendingException("No server configuration given");
         }
-        String loggingId = makeLoggingId(emailBuilder, serverConfig, tenant);
-        String credentialToken = getCredentialToken(serverConfig, loggingId);
+        String loggingId = makeLoggingId(emailBuilder, serverConfigResource, tenant);
+        String credentialToken = getCredentialToken(serverConfigResource, loggingId);
         String folder = tenant != null ? tenant.getId() + "/" : "";
+        EmailServerConfigModel serverConfig = new EmailServerConfigModel(serverConfigResource);
+
         Email email = emailBuilder.buildEmail(placeholderService);
-        initializeEmailWithServerConfig(email, serverConfig, loggingId, credentialToken);
+        initializeEmailWithServerConfig(email, serverConfig, loggingId);
         try {
             email.buildMimeMessage();
         } catch (EmailException e) {
@@ -195,6 +201,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
             LOG.debug("Queueing {}{} : {}", folder, loggingId, emailBuilder.toString());
         }
         EmailTask task = new EmailTask(email, serverConfig.getPath(), loggingId, credentialToken, folder);
+
         task.currentTry = executorService.submit(task::trySending);
         inProcess.put(task.queuedEmailPath, task);
         Future<String> future = task.resultFuture;
@@ -230,14 +237,13 @@ public class EmailServiceImpl implements EmailService, Runnable {
         }
     }
 
-    protected String sendEmail(MimeMessage message, String loggingId) throws EmailSendingException {
+    protected String sendEmail(MimeMessage message, String loggingId, String credentialToken) throws EmailSendingException {
         verifyServiceIsEnabled();
         try {
-            Transport.send(message);
-            String messageId = message.getMessageID();
+            String messageId = credentialService.sendMail(message, credentialToken, null);
             LOG.info("Successfully sent email {} : {}", loggingId, messageId);
             return messageId;
-        } catch (RuntimeException | MessagingException e) {
+        } catch (RuntimeException | RepositoryException | IOException  | MessagingException e) {
             LOG.warn("Sent email  failed {}", loggingId, e);
             throw new EmailSendingException(e);
         }
@@ -263,20 +269,8 @@ public class EmailServiceImpl implements EmailService, Runnable {
     /**
      * Initializes the email session within the email with the server configuration.
      */
-    protected void initializeEmailWithServerConfig(@Nonnull Email email, @Nonnull Resource serverConfigResource, @Nonnull String loggingId, @Nullable String credentialToken) throws EmailSendingException {
+    protected void initializeEmailWithServerConfig(@Nonnull Email email, @Nonnull EmailServerConfigModel serverConfig, @Nonnull String loggingId) throws EmailSendingException {
         verifyServiceIsEnabled();
-        EmailServerConfigModel serverConfig = new EmailServerConfigModel(serverConfigResource);
-        Authenticator authenticator;
-        try {
-            String idOrToken = isNotBlank(credentialToken) ? credentialToken : serverConfig.getCredentialId();
-            authenticator = isNotBlank(idOrToken) ?
-                    credentialService.getMailAuthenticator(idOrToken, serverConfigResource.getResourceResolver()) : null;
-        } catch (RepositoryException e) { // acl failure
-            throw new EmailSendingException("Trouble creating credential token for email service for " + loggingId, e);
-        }
-        if (serverConfig == null) {
-            throw new IllegalArgumentException("No email server configuration given for " + loggingId);
-        }
         email.setDebug(config.debugInteractions());
         if (config.connectionTimeout() != 0) {
             email.setSocketConnectionTimeout(config.connectionTimeout());
@@ -301,9 +295,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
         } else {
             LOG.warn("Unknown connection type {} at {}", connectionType, serverConfig.getPath());
         }
-        if (authenticator != null) {
-            email.setAuthenticator(authenticator);
-        }
+        // email.setAuthenticator(authenticator) is deliberately left out - that's done in CredentialService for security reasons.
         LOG.debug("Using serverCfg for {} : {}", loggingId, serverConfig.toString());
     }
 
@@ -598,7 +590,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
         public EmailTask(@Nonnull Email email, @Nonnull String serverConfigPath, @Nonnull String loggingId, @Nullable String credentialToken, @Nonnull String folder) throws EmailSendingException {
             this.loggingId = loggingId;
             QueuedEmail queuedEmail = new QueuedEmail(loggingId, email, serverConfigPath, credentialToken, folder);
-            queuedEmailPath = queuedEmail.getPath(); // FIXME(hps,10.09.20) tenant?
+            queuedEmailPath = queuedEmail.getPath();
             queuedEmail.setNextTry(System.currentTimeMillis() + MILLISECONDS.convert(config.retryTime(), SECONDS));
             queuedEmail.setQueuedAt(serviceId);
             lastRun = System.currentTimeMillis();
@@ -639,13 +631,14 @@ public class EmailServiceImpl implements EmailService, Runnable {
                                 LOG.error("Service resolver could not read server config {} for {}", queuedEmail.getServerConfigPath(), queuedEmail.getLoggingId());
                                 throw new EmailSendingException("Service resolver could not read server configuration");
                             }
-                            initializeEmailWithServerConfig(emailForSession, serverConfigResource, queuedEmail.getLoggingId(), queuedEmail.getCredentialToken());
+                            EmailServerConfigModel serverConfig = new EmailServerConfigModel(serverConfigResource);
+                            initializeEmailWithServerConfig(emailForSession, serverConfig, queuedEmail.getLoggingId());
                             Session session = emailForSession.getMailSession();
 
                             LOG.info("Processing {} retry {}", queuedEmail.getRetry(), loggingId);
                             verifyServiceIsEnabled(); // don't send during #deactivate
                             if (!resultFuture.isDone()) { // checks for outside events that abort us
-                                String messageId = sendEmail(queuedEmail.getMimeMessage(session), loggingId);
+                                String messageId = sendEmail(queuedEmail.getMimeMessage(session), loggingId, queuedEmail.getCredentialToken());
                                 resultFuture.complete(messageId);
                                 // preventively clear thread interruption status since it's crucial that the rest is done and we are almost done, anyway.
                                 Thread.interrupted();

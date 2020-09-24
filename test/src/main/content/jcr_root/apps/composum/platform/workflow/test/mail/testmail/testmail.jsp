@@ -1,3 +1,5 @@
+<%@page session="false" pageEncoding="UTF-8" %>
+<%-- http://localhost:9090/apps/composum/platform/workflow/test/mail/testmail.html --%>
 <%@ page import="com.composum.platform.workflow.mail.EmailBuilder" %>
 <%@ page import="com.composum.platform.workflow.mail.EmailService" %>
 <%@ page import="com.composum.sling.core.BeanContext" %>
@@ -6,7 +8,6 @@
 <%@ page import="java.util.concurrent.TimeUnit" %>
 <%@ page import="org.apache.sling.tenant.Tenant" %>
 <%@ page import="java.util.Iterator" %>
-<%@page session="false" pageEncoding="UTF-8" %>
 <%@taglib prefix="sling" uri="http://sling.apache.org/taglibs/sling/1.2" %>
 <%@taglib prefix="cpn" uri="http://sling.composum.com/cpnl/1.0" %>
 <sling:defineObjects/>

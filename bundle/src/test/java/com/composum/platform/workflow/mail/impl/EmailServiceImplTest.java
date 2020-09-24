@@ -3,6 +3,7 @@ package com.composum.platform.workflow.mail.impl;
 import com.composum.platform.commons.content.service.PlaceholderService;
 import com.composum.platform.commons.content.service.PlaceholderServiceImpl;
 import com.composum.platform.commons.credentials.CredentialService;
+import com.composum.platform.commons.credentials.impl.CredentialServiceImpl;
 import com.composum.platform.workflow.mail.EmailBuilder;
 import com.composum.platform.workflow.mail.EmailSendingException;
 import com.composum.sling.core.BeanContext;
@@ -28,7 +29,6 @@ import org.apache.sling.commons.threads.ThreadPoolManager;
 import org.apache.sling.tenant.Tenant;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit.SlingContext;
-import org.jetbrains.annotations.Nullable;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -38,10 +38,15 @@ import org.mockito.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.jcr.RepositoryException;
-import javax.mail.Authenticator;
+import javax.mail.MessagingException;
 import javax.mail.PasswordAuthentication;
+import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
+import java.io.IOException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.*;
@@ -78,8 +83,19 @@ public class EmailServiceImplTest {
     @Mock
     protected ResourceResolverFactory resourceResolverFactory;
 
-    @Mock
-    protected CredentialService credentialService;
+    @Spy
+    protected CredentialService credentialService = new CredentialServiceImpl() {
+        @Override
+        public String sendMail(@Nonnull MimeMessage message, @Nullable String credentialIdOrToken, @Nullable ResourceResolver aclCheckResolver) throws RepositoryException, IOException, MessagingException {
+            Transport.send(message, getEmailRelayUser(), getEmailRelayPassword());
+            return message.getMessageID();
+        }
+
+        @Override
+        public String getAccessToken(@Nonnull String credentialId, @Nullable ResourceResolver aclCheckResolver, @Nonnull String type) throws RepositoryException, IllegalArgumentException, IllegalStateException {
+            return "the token";
+        }
+    };
 
     @Mock
     protected ThreadPoolManager threadPoolManager;
@@ -107,14 +123,6 @@ public class EmailServiceImplTest {
     @Before
     public void setUp() throws RepositoryException, LoginException {
         MockitoAnnotations.initMocks(this);
-        when(credentialService.getMailAuthenticator(anyString(), any())).thenReturn(
-                new Authenticator() {
-                    @Override
-                    protected PasswordAuthentication getPasswordAuthentication() {
-                        return new PasswordAuthentication("apikey", getPassword());
-                    }
-                }
-        );
         serverConfigResource = context.build().resource(PATH_SERVERCFG, ResourceUtil.PROP_PRIMARY_TYPE, ResourceUtil.TYPE_UNSTRUCTURED,
                 "enabled", true,
                 "connectionType", "STARTTLS",
@@ -137,6 +145,7 @@ public class EmailServiceImplTest {
         when(config.enabled()).thenReturn(true);
         when(config.connectionTimeout()).thenReturn(1000);
         when(config.socketTimeout()).thenReturn(1000);
+        when(config.debugInteractions()).thenReturn(true);
         when(threadPoolManager.get(anyString())).thenReturn(threadPool);
         doAnswer((invocation) -> {
             threadPool.shutdownNow();
@@ -155,6 +164,10 @@ public class EmailServiceImplTest {
 
         LOG.info("Test start time: {} = {}", System.currentTimeMillis(), new Date());
 
+    }
+
+    protected PasswordAuthentication getAuthenticatorForRelay() {
+        return new PasswordAuthentication("apikey", getEmailRelayPassword());
     }
 
     protected void printJcr() {
@@ -182,7 +195,14 @@ public class EmailServiceImplTest {
     /**
      * Hook for personal tests with a real mail server.
      */
-    protected String getPassword() {
+    protected String getEmailRelayUser() {
+        return "someuser";
+    }
+
+    /**
+     * Hook for personal tests with a real mail server.
+     */
+    protected String getEmailRelayPassword() {
         return "somepassword";
     }
 
