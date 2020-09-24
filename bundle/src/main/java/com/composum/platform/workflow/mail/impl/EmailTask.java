@@ -32,10 +32,15 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 public class EmailTask {
 
     private static final Logger LOG = LoggerFactory.getLogger(EmailTask.class);
-
+    /**
+     * Something that can be used to uniquely identify the mail for the logfile.
+     */
+    protected final String loggingId;
+    protected final String queuedEmailPath;
     @Nonnull
     private final EmailServiceImpl emailService;
-
+    protected volatile long lastRun = System.currentTimeMillis();
+    protected volatile Future<?> currentTry;
     protected final CompletableFuture<String> resultFuture = new CompletableFuture<>() {
         @Override
         public boolean cancel(boolean mayInterruptIfRunning) {
@@ -52,17 +57,6 @@ public class EmailTask {
         }
     };
 
-    protected volatile long lastRun;
-
-    protected volatile Future<?> currentTry;
-
-    /**
-     * Something that can be used to uniquely identify the mail for the logfile.
-     */
-    protected final String loggingId;
-
-    protected final String queuedEmailPath;
-
     public EmailTask(@Nonnull EmailServiceImpl emailService, @Nonnull Email email, @Nonnull String serverConfigPath, @Nonnull String loggingId, @Nullable String credentialToken, @Nonnull String folder) throws EmailSendingException {
         this.emailService = emailService;
         this.loggingId = loggingId;
@@ -70,7 +64,6 @@ public class EmailTask {
         queuedEmailPath = queuedEmail.getPath();
         queuedEmail.setNextTry(System.currentTimeMillis() + MILLISECONDS.convert(emailService.config.retryTime(), SECONDS));
         queuedEmail.setQueuedAt(emailService.serviceId);
-        lastRun = System.currentTimeMillis();
         try (ResourceResolver serviceResolver = emailService.getServiceResolver()) {
             queuedEmail.create(serviceResolver);
             serviceResolver.commit();
@@ -80,11 +73,10 @@ public class EmailTask {
         }
     }
 
-    public EmailTask(EmailServiceImpl emailService, @Nonnull QueuedEmail queuedEmail) {
+    public EmailTask(@Nonnull EmailServiceImpl emailService, @Nonnull QueuedEmail queuedEmail) {
         this.emailService = emailService;
         queuedEmailPath = queuedEmail.path;
         loggingId = queuedEmail.getLoggingId();
-        lastRun = System.currentTimeMillis();
     }
 
     public void trySending() {
@@ -97,38 +89,11 @@ public class EmailTask {
                 if (queuedEmailResource != null) {
                     queuedEmail = new QueuedEmail(queuedEmailResource);
                     if (emailService.serviceId.equals(queuedEmail.getQueuedAt())) {
-                        queuedEmail.setState(STATE_SENDING);
-                        queuedEmail.setNextTry(NEXTTRY_NEVER); // not automatically selected anymore
-                        queuedEmail.update(serviceResolver); // make sure we can write to it by setting last modified time
-                        serviceResolver.commit();
-                        serviceResolver.refresh();
-
-                        Email emailForSession = new SimpleEmail();
-                        Resource serverConfigResource = serviceResolver.getResource(queuedEmail.getServerConfigPath());
-                        if (serverConfigResource == null) {
-                            LOG.error("Service resolver could not read server config {} for {}", queuedEmail.getServerConfigPath(), queuedEmail.getLoggingId());
-                            throw new EmailSendingException("Service resolver could not read server configuration");
-                        }
-                        EmailServerConfigModel serverConfig = new EmailServerConfigModel(serverConfigResource);
-                        emailService.initializeEmailWithServerConfig(emailForSession, serverConfig, queuedEmail.getLoggingId());
-                        Session session = emailForSession.getMailSession();
+                        setQueuedEmailToSending(queuedEmail, serviceResolver);
+                        Session session = makeInitializedSession(queuedEmail, serviceResolver);
 
                         LOG.info("Processing {} retry {}", queuedEmail.getRetry(), loggingId);
-                        emailService.verifyServiceIsEnabled(); // don't send during #deactivate
-                        if (!resultFuture.isDone()) { // checks for outside events that abort us
-                            String messageId = emailService.sendEmail(queuedEmail.getMimeMessage(session), loggingId, queuedEmail.getCredentialToken());
-                            resultFuture.complete(messageId);
-                            // preventively clear thread interruption status since it's crucial that the rest is done and we are almost done, anyway.
-                            Thread.interrupted();
-                            archiveQueuedEmail(serviceResolver, true, STATE_SENT);
-                        } else if (resultFuture.isCancelled()) { // special case of done. Move to failed.
-                            LOG.info("Was cancelled from outside - archiving to failed.");
-                            archiveQueuedEmail(serviceResolver, false, STATE_CANCELLED);
-                        } else { // safety check, but that must not happen.
-                            LOG.error("Bug: Future already completed? Not sending {}", loggingId);
-                            archiveQueuedEmail(serviceResolver, false, STATE_INTERNAL_ERROR); // nothing sensible to do.
-                        }
-
+                        sendEmailAndArchive(queuedEmail, serviceResolver, session);
                     } else {
                         LOG.info("Ignoring since queued for different server - race condition {}", loggingId);
                     }
@@ -136,49 +101,15 @@ public class EmailTask {
                     LOG.error("Queued email is gone for unknown reason (possibly processed by other cluster server) for {}", loggingId);
                     resultFuture.completeExceptionally(new EmailSendingException("Queued email is gone for some reason."));
                 }
-            } catch (PersistenceException e) {
-                LOG.error("Bug: trouble changing queued email {}", loggingId, e);
-                throw new EmailSendingException("Bug: trouble changing queued email.");
-            } catch (EmailException | RuntimeException e) {
-                String logid = queuedEmail != null ? queuedEmail.getLoggingId() : queuedEmailPath;
-                throw new EmailSendingException("Exception sending " + logid, e);
+            } catch (RuntimeException e) { // recast as not retryable EmailSendingException
+                throw new EmailSendingException("Exception sending " + loggingId, e);
             }
+
         } catch (EmailSendingException e) {
-            EmailServiceImpl.Config conf = emailService.config;
-            boolean retry;
-            if (conf == null || !conf.enabled()) {
-                LOG.info("Emailservice disabled in the meantime -> aborting {} , might be retried later, though.", loggingId);
-                resultFuture.completeExceptionally(new EmailSendingException("Emailservice disabled -> abort. Might be retried later, though."));
-                retry = true;
-            } else if (resultFuture.isCancelled()) {
-                LOG.info("Was cancelled from outside - archiving to failed.");
-                retry = false;
-            } else if (e.isRetryable() && !resultFuture.isDone()) {
-                LOG.info("Try {} failed for {} because of {}", queuedEmail.getRetry(), loggingId, e.toString());
-                if (queuedEmail.getRetry() >= conf.retries()) {
-                    resultFuture.completeExceptionally(
-                            new EmailSendingException("Giving up after " + queuedEmail.getRetry() + " retries for " + loggingId, e));
-                    LOG.info("Giving up after {} retries for {}", queuedEmail.getRetry(), loggingId, e);
-                    retry = false;
-                } else {
-                    retry = true;
-                }
-            } else {
-                resultFuture.completeExceptionally(e);
-                LOG.warn("Non-retryable error, giving up: try {} failed for {}", (queuedEmail != null ? queuedEmail.getRetry() : -1), loggingId, e);
-                retry = false;
-            }
-            if (retry) {
-                prepareForRetry();
-            } else {
-                archiveQueuedEmail(null, false, STATE_FAILED);
-            }
-        } catch (RuntimeException e) { // Bug.
-            LOG.warn("Unexpected exception - aborting {}", loggingId, e);
-            resultFuture.completeExceptionally(e);
-            archiveQueuedEmail(null, false, STATE_INTERNAL_ERROR);
-            throw e;
-        } catch (Error e) {
+
+            decideRetry(queuedEmail, e);
+
+        } catch (RuntimeException | Error e) { // RuntimeExceptions should be impossible here, caught in the inner try.
             LOG.warn("Unexpected error - aborting {}", loggingId, e);
             resultFuture.completeExceptionally(e);
             // archiveQueuedEmail(null, false); we omit that deliberately because Errors are serious and should be investigated
@@ -192,21 +123,50 @@ public class EmailTask {
         }
     }
 
-    protected void prepareForRetry() {
-        try (ResourceResolver resolver = emailService.getServiceResolver()) {
-            Resource queuedResource = resolver.getResource(queuedEmailPath);
-            if (queuedResource != null) {
-                QueuedEmail queuedEmail = new QueuedEmail(queuedResource);
-                queuedEmail.setState(null);
-                queuedEmail.setRetry(queuedEmail.getRetry() + 1);
-                queuedEmail.setNextTry(System.currentTimeMillis() + emailService.retryTime(queuedEmail.getRetry()));
-                queuedEmail.update(resolver);
-                resolver.commit();
-            } else {
-                LOG.error("Bug? Pending email disappeared. {}", queuedEmailPath);
-            }
-        } catch (EmailSendingException | RuntimeException | PersistenceException e) {
-            LOG.error("Error preparing for retry {}", queuedEmailPath, e);
+
+    protected void setQueuedEmailToSending(QueuedEmail queuedEmail, ResourceResolver serviceResolver) throws EmailSendingException {
+        try {
+            queuedEmail.setState(STATE_SENDING);
+            queuedEmail.setNextTry(NEXTTRY_NEVER); // not automatically selected anymore
+            queuedEmail.update(serviceResolver); // make sure we can write to it by setting last modified time
+            serviceResolver.commit();
+            serviceResolver.refresh();
+        } catch (PersistenceException e) {
+            LOG.error("Bug: trouble changing queued email {}", loggingId, e);
+            throw new EmailSendingException("Bug: trouble changing queued email " + loggingId, e);
+        }
+    }
+
+    protected Session makeInitializedSession(QueuedEmail queuedEmail, ResourceResolver serviceResolver) throws EmailSendingException {
+        Email emailForSession = new SimpleEmail();
+        Resource serverConfigResource = serviceResolver.getResource(queuedEmail.getServerConfigPath());
+        if (serverConfigResource == null) {
+            LOG.error("Service resolver could not read server config {} for {}", queuedEmail.getServerConfigPath(), queuedEmail.getLoggingId());
+            throw new EmailSendingException("Service resolver could not read server configuration");
+        }
+        EmailServerConfigModel serverConfig = new EmailServerConfigModel(serverConfigResource);
+        emailService.initializeEmailWithServerConfig(emailForSession, serverConfig, queuedEmail.getLoggingId());
+        try {
+            return emailForSession.getMailSession();
+        } catch (EmailException e) {
+            throw new EmailSendingException("Could not create mail session for " + loggingId, e);
+        }
+    }
+
+    protected void sendEmailAndArchive(QueuedEmail queuedEmail, ResourceResolver serviceResolver, Session session) throws EmailSendingException {
+        if (!resultFuture.isDone()) { // checks for outside events that abort us
+            emailService.verifyServiceIsEnabled(); // don't send during #deactivate
+            String messageId = emailService.sendEmail(queuedEmail.getMimeMessage(session), loggingId, queuedEmail.getCredentialToken());
+            resultFuture.complete(messageId);
+            // preventively clear thread interruption status since it's crucial that the rest is done and we are almost done, anyway.
+            Thread.interrupted();
+            archiveQueuedEmail(serviceResolver, true, STATE_SENT);
+        } else if (resultFuture.isCancelled()) { // special case of done. Move to failed.
+            LOG.info("Was cancelled from outside - archiving to failed.");
+            archiveQueuedEmail(serviceResolver, false, STATE_CANCELLED);
+        } else { // safety check, but that must not happen.
+            LOG.error("Bug: Future already completed? Not sending {}", loggingId);
+            archiveQueuedEmail(serviceResolver, false, STATE_INTERNAL_ERROR); // nothing sensible to do.
         }
     }
 
@@ -250,13 +210,63 @@ public class EmailTask {
             } else {
                 LOG.warn("Bug: queued email not present anymore for {}", loggingId);
             }
-        } catch (EmailSendingException | PersistenceException | RepositoryException e) {
+        } catch (EmailSendingException | PersistenceException | RepositoryException | RuntimeException e) {
             LOG.error("Exception removing queued email for {} at {}", loggingId, queuedEmailPath, e);
             resultFuture.completeExceptionally(e);
         } finally {
             if (serviceResolver == null && resolver != null) { // serviceResolver should not be closed here.
                 resolver.close();
             }
+        }
+    }
+
+    protected void decideRetry(QueuedEmail queuedEmail, EmailSendingException e) {
+        EmailServiceImpl.Config conf = emailService.config;
+        boolean retry;
+        if (conf == null || !conf.enabled()) {
+            LOG.info("Emailservice disabled in the meantime -> aborting {} , might be retried later, though.", loggingId);
+            resultFuture.completeExceptionally(new EmailSendingException("Emailservice disabled -> abort. Might be retried later, though."));
+            retry = true;
+        } else if (resultFuture.isCancelled()) {
+            LOG.info("Was cancelled from outside - archiving to failed.");
+            retry = false;
+        } else if (e.isRetryable() && !resultFuture.isDone()) {
+            LOG.info("Try {} failed for {} because of {}", queuedEmail.getRetry(), loggingId, e.toString());
+            if (queuedEmail.getRetry() >= conf.retries()) {
+                resultFuture.completeExceptionally(
+                        new EmailSendingException("Giving up after " + queuedEmail.getRetry() + " retries for " + loggingId, e));
+                LOG.info("Giving up after {} retries for {}", queuedEmail.getRetry(), loggingId, e);
+                retry = false;
+            } else {
+                retry = true;
+            }
+        } else {
+            resultFuture.completeExceptionally(e);
+            LOG.warn("Non-retryable error, giving up: try {} failed for {}", (queuedEmail != null ? queuedEmail.getRetry() : -1), loggingId, e);
+            retry = false;
+        }
+        if (retry) {
+            prepareForRetry();
+        } else {
+            archiveQueuedEmail(null, false, STATE_FAILED);
+        }
+    }
+
+    protected void prepareForRetry() {
+        try (ResourceResolver resolver = emailService.getServiceResolver()) {
+            Resource queuedResource = resolver.getResource(queuedEmailPath);
+            if (queuedResource != null) {
+                QueuedEmail queuedEmail = new QueuedEmail(queuedResource);
+                queuedEmail.setState(null);
+                queuedEmail.setRetry(queuedEmail.getRetry() + 1);
+                queuedEmail.setNextTry(System.currentTimeMillis() + emailService.retryTime(queuedEmail.getRetry()));
+                queuedEmail.update(resolver);
+                resolver.commit();
+            } else {
+                LOG.error("Bug? Pending email disappeared. {}", queuedEmailPath);
+            }
+        } catch (EmailSendingException | RuntimeException | PersistenceException e) {
+            LOG.error("Error preparing for retry {}", queuedEmailPath, e);
         }
     }
 
