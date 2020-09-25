@@ -41,6 +41,14 @@ public class EmailTask {
     private final EmailServiceImpl emailService;
     protected volatile long lastRun = System.currentTimeMillis();
     protected volatile Future<?> currentTry;
+    /**
+     * Marker set during the actual sending process that cannot be interrupted.
+     */
+    protected volatile boolean uncancellable;
+    /**
+     * Marker that during {@link #uncancellable} was set a cancel occurred, and the queue entry should be moved.
+     */
+    protected volatile boolean docancel;
     protected final CompletableFuture<String> resultFuture = new CompletableFuture<>() {
         @Override
         public boolean cancel(boolean mayInterruptIfRunning) {
@@ -48,12 +56,15 @@ public class EmailTask {
             if (currentTry != null) {
                 currentTry.cancel(mayInterruptIfRunning);
             }
-            try {
-                return super.cancel(mayInterruptIfRunning);
-            } finally { // move to failed.
-                // FIXME(hps,22.09.20) might be dangerous if the mail is currently in work :-(
+            boolean result = super.cancel(mayInterruptIfRunning);
+            // move to failed.
+            if (uncancellable) {
+                // cannot archive it right now since we don't want to interfere with running process
+                docancel = true;
+            } else {
                 archiveQueuedEmail(null, false, STATE_CANCELLED);
             }
+            return result;
         }
     };
 
@@ -98,7 +109,7 @@ public class EmailTask {
                         LOG.info("Ignoring since queued for different server - race condition {}", loggingId);
                     }
                 } else {
-                    LOG.error("Queued email is gone for unknown reason (possibly processed by other cluster server) for {}", loggingId);
+                    LOG.warn("Queued email is gone for unknown reason (possibly processed by other cluster server) for {}", loggingId);
                     resultFuture.completeExceptionally(new EmailSendingException("Queued email is gone for some reason."));
                 }
             } catch (RuntimeException e) { // recast as not retryable EmailSendingException
@@ -130,7 +141,6 @@ public class EmailTask {
             queuedEmail.setNextTry(NEXTTRY_NEVER); // not automatically selected anymore
             queuedEmail.update(serviceResolver); // make sure we can write to it by setting last modified time
             serviceResolver.commit();
-            serviceResolver.refresh();
         } catch (PersistenceException e) {
             LOG.error("Bug: trouble changing queued email {}", loggingId, e);
             throw new EmailSendingException("Bug: trouble changing queued email " + loggingId, e);
@@ -154,19 +164,28 @@ public class EmailTask {
     }
 
     protected void sendEmailAndArchive(QueuedEmail queuedEmail, ResourceResolver serviceResolver, Session session) throws EmailSendingException {
-        if (!resultFuture.isDone()) { // checks for outside events that abort us
-            emailService.verifyServiceIsEnabled(); // don't send during #deactivate
-            String messageId = emailService.sendEmail(queuedEmail.getMimeMessage(session), loggingId, queuedEmail.getCredentialToken());
-            resultFuture.complete(messageId);
-            // preventively clear thread interruption status since it's crucial that the rest is done and we are almost done, anyway.
-            Thread.interrupted();
-            archiveQueuedEmail(serviceResolver, true, STATE_SENT);
-        } else if (resultFuture.isCancelled()) { // special case of done. Move to failed.
-            LOG.info("Was cancelled from outside - archiving to failed.");
-            archiveQueuedEmail(serviceResolver, false, STATE_CANCELLED);
-        } else { // safety check, but that must not happen.
-            LOG.error("Bug: Future already completed? Not sending {}", loggingId);
-            archiveQueuedEmail(serviceResolver, false, STATE_INTERNAL_ERROR); // nothing sensible to do.
+        try {
+            uncancellable = true;
+            if (!resultFuture.isDone()) { // checks for outside events that abort us
+                emailService.verifyServiceIsEnabled(); // don't send during #deactivate
+                String messageId = emailService.sendEmail(queuedEmail.getMimeMessage(session), loggingId, queuedEmail.getCredentialToken());
+                resultFuture.complete(messageId);
+                // preventively clear thread interruption status since it's crucial that the rest is done and we are almost done, anyway.
+                Thread.interrupted();
+                archiveQueuedEmail(serviceResolver, true, STATE_SENT);
+            } else if (resultFuture.isCancelled()) { // special case of done. Move to failed.
+                LOG.info("Was cancelled from outside - archiving to failed.");
+                archiveQueuedEmail(serviceResolver, false, STATE_CANCELLED);
+            } else { // safety check, but that must not happen.
+                LOG.error("Bug: Future already completed? Not sending {}", loggingId);
+                archiveQueuedEmail(serviceResolver, false, STATE_INTERNAL_ERROR); // nothing sensible to do.
+            }
+        } finally {
+            uncancellable = false;
+            if (docancel) {
+                archiveQueuedEmail(serviceResolver, false, STATE_CANCELLED); // noop if it was already moved.
+                docancel = false;
+            }
         }
     }
 
@@ -177,6 +196,7 @@ public class EmailTask {
         ResourceResolver resolver = null;
         try {
             resolver = serviceResolver != null ? serviceResolver : emailService.getServiceResolver();
+            resolver.refresh();
             Resource res = resolver.getResource(queuedEmailPath);
             if (res != null) {
                 boolean keepMail = success ? emailService.cleanupService.keepDeliveredEmails() : emailService.cleanupService.keepFailedEmails();
@@ -192,7 +212,6 @@ public class EmailTask {
                     }
                     queuedEmail.update(resolver);
                     resolver.commit();
-                    resolver.refresh();
 
                     String dir = ResourceUtil.getParent(newLocation);
                     if (!StringUtils.startsWith(dir, basepath)) {
@@ -206,10 +225,8 @@ public class EmailTask {
                     resolver.delete(res);
                 }
                 resolver.commit();
-                resolver.refresh();
-            } else {
-                LOG.warn("Bug: queued email not present anymore for {}", loggingId);
             }
+            emailService.inProcess.remove(queuedEmailPath);
         } catch (EmailSendingException | PersistenceException | RepositoryException | RuntimeException e) {
             LOG.error("Exception removing queued email for {} at {}", loggingId, queuedEmailPath, e);
             resultFuture.completeExceptionally(e);

@@ -65,7 +65,7 @@
                 </div>
                 <% } %>
                 <% if (notDone) { %>
-                <div class="alert alert-warning">Still sending email</div>
+                <div class="alert alert-warning">Still sending email - reload to recheck result</div>
                 <% } %>
                 <% if (error != null) { %>
                 <div class="alert alert-danger">Error: <%= error %>

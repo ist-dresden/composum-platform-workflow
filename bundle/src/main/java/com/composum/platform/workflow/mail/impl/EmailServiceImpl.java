@@ -4,6 +4,7 @@ import com.composum.platform.commons.content.service.PlaceholderService;
 import com.composum.platform.commons.credentials.CredentialService;
 import com.composum.platform.commons.util.SlingThreadPoolExecutorService;
 import com.composum.platform.workflow.mail.*;
+import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.platform.staging.query.Query;
 import com.composum.sling.platform.staging.query.QueryBuilder;
 import com.google.common.collect.MapMaker;
@@ -379,20 +380,22 @@ public class EmailServiceImpl implements EmailService, Runnable {
      */
     @Override
     public void run() {
-        LOG.info("Cron called");
-        if (lock.writeLock().tryLock()) {
-            try (ResourceResolver resolver = getServiceResolver()) {
-                triggerProcessingOfReservedEntries(resolver);
-                retrievePendingMails(resolver);
-            } catch (EmailSendingException | InterruptedException | RuntimeException e) {
-                LOG.error("Trouble managing queue", e);
-            } finally {
-                lock.writeLock().unlock();
-                LOG.info("Cron done");
+        if (config != null && config.enabled()) {
+            LOG.debug("Cron called");
+            if (lock.writeLock().tryLock()) {
+                try (ResourceResolver resolver = getServiceResolver()) {
+                    triggerProcessingOfReservedEntries(resolver);
+                    retrievePendingMails(resolver);
+                } catch (EmailSendingException | InterruptedException | RuntimeException e) {
+                    LOG.error("Trouble managing queue", e);
+                } finally {
+                    lock.writeLock().unlock();
+                    LOG.info("Cron done");
+                }
+                cleanupInProcess();
+            } else {
+                LOG.warn("Cron still running - skipping call"); // Warn since this is strange. Overload?
             }
-            cleanupInProcess();
-        } else {
-            LOG.info("Cron currently running - skipping call");
         }
     }
 
@@ -465,12 +468,12 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 EmailTask oldTask = inProcess.get(reservedQueueEntryPath);
                 if (oldTask == null) {
                     QueuedEmail queuedEmail = new QueuedEmail(reservedQueueEntry);
-                    LOG.debug("Requeueing {} : {}", queuedEmail.getLoggingId(), reservedQueueEntryPath);
+                    LOG.info("Requeueing {} : {}", queuedEmail.getLoggingId(), reservedQueueEntryPath);
                     EmailTask task = new EmailTask(this, queuedEmail);
                     task.currentTry = executorService.submit(task::trySending);
                     inProcess.put(task.queuedEmailPath, task);
                 } else if (oldTask.currentTry.isDone()) {
-                    LOG.debug("Requeueing still present {} : {}", oldTask.loggingId, oldTask.queuedEmailPath);
+                    LOG.info("Requeueing still present {} : {}", oldTask.loggingId, oldTask.queuedEmailPath);
                     oldTask.currentTry = executorService.submit(oldTask::trySending);
                 }
             }
@@ -495,7 +498,7 @@ public class EmailServiceImpl implements EmailService, Runnable {
     @Nonnull
     protected List<Resource> queryPendingMails(ResourceResolver resolver) {
         Query query = resolver.adaptTo(QueryBuilder.class).createQuery();
-        query.path(QueuedEmail.PATH_MAILQUEUE).condition(
+        query.path(QueuedEmail.PATH_MAILQUEUE).type(QueuedEmail.PRIMARYTYPE).condition(
                 query.conditionBuilder().property(PROP_NEXTTRY).lt().val(Calendar.getInstance())
         );
         List<Resource> pendingMails = new ArrayList<>();

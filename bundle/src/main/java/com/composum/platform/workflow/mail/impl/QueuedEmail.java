@@ -88,6 +88,8 @@ class QueuedEmail {
      * queries for {@link #PROP_NEXTTRY}. (1.1.9999)
      */
     public static final long NEXTTRY_NEVER = 253370764800000L;
+    /** The {@value ResourceUtil#PROP_PRIMARY_TYPE} we use for queue entries. */
+    public static final String PRIMARYTYPE = ResourceUtil.TYPE_UNSTRUCTURED;
 
     protected final String path;
     protected final String loggingId;
@@ -176,7 +178,7 @@ class QueuedEmail {
 
     public void create(@Nonnull ResourceResolver resolver) throws EmailSendingException {
         try {
-            Resource resource = ResourceUtil.getOrCreateResource(resolver, path, ResourceUtil.TYPE_SLING_FOLDER + "/" + ResourceUtil.TYPE_UNSTRUCTURED);
+            Resource resource = ResourceUtil.getOrCreateResource(resolver, path, ResourceUtil.TYPE_SLING_FOLDER + "/" + PRIMARYTYPE);
             writeToResource(resource);
         } catch (RepositoryException e) {
             LOG.error("Could not write to {}", path, e);
@@ -186,6 +188,7 @@ class QueuedEmail {
 
     public void update(@Nonnull ResourceResolver resolver) throws EmailSendingException {
         try {
+            resolver.refresh();
             Resource resource = resolver.getResource(path);
             if (resource != null) {
                 writeToResource(resource);
