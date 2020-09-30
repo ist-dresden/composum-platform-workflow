@@ -312,7 +312,7 @@ public class EmailBuilder {
     public String describeForLogging() {
         StringBuilder buf = new StringBuilder("{");
         String from = StringUtils.defaultIfBlank(combinedProperties.get(PROP_FROM, String.class), "");
-        buf.append(" from=").append(from.trim().hashCode());
+        buf.append(" from=").append(from.trim());
         String[] tos = combinedProperties.get(PROP_TO, String[].class);
         if (tos != null) {
             int num = 0;
@@ -323,8 +323,7 @@ public class EmailBuilder {
                 }
                 buf.append(" to=").append(
                         StringUtils.defaultIfBlank(combinedProperties.get(PROP_FROM, String.class), "")
-                                .trim().hashCode()
-                );
+                                .trim());
             }
         }
         if (template != null) {
