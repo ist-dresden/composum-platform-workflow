@@ -54,9 +54,9 @@
             </dependency>
             <dependency>
                 <groupId>com.composum.platform</groupId>
+                <artifactId>composum-platform-staging-bundle</artifactId>
                 <version>${composum.platform.version}</version>
                 <scope>provided</scope>
-                <artifactId>composum-platform-staging-bundle</artifactId>
             </dependency>
 
             <dependency>
