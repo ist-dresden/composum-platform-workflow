@@ -64,19 +64,19 @@
         <!-- Composum Platform -->
         <dependency>
             <groupId>com.composum.platform</groupId>
-            <artifactId>composum-platform-models-bundle</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.composum.platform</groupId>
             <artifactId>composum-platform-commons-bundle</artifactId>
         </dependency>
         <dependency>
             <groupId>com.composum.platform</groupId>
-            <artifactId>composum-platform-testing-testutil</artifactId>
+            <artifactId>composum-platform-models-bundle</artifactId>
         </dependency>
         <dependency>
             <groupId>com.composum.platform</groupId>
             <artifactId>composum-platform-staging-bundle</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-testing-testutil</artifactId>
         </dependency>
 
         <!-- Composum Nodes (Core) -->

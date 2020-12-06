@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.composum.platform</groupId>
         <artifactId>composum-platform</artifactId>
-        <version>1.1.1-SNAPSHOT</version>
+        <version>1.2.1-SNAPSHOT</version>
         <relativePath/>
     </parent>
 
@@ -18,7 +18,7 @@
 
     <properties>
         <composum.pages.version>1.1.1-SNAPSHOT</composum.pages.version>
-        <composum.platform.version>1.1.1-SNAPSHOT</composum.platform.version>
+        <composum.platform.version>1.2.1-SNAPSHOT</composum.platform.version>
     </properties>
 
     <modules>
@@ -42,13 +42,13 @@
             <!-- Composum Platform -->
             <dependency>
                 <groupId>com.composum.platform</groupId>
-                <artifactId>composum-platform-models-bundle</artifactId>
+                <artifactId>composum-platform-commons-bundle</artifactId>
                 <version>${composum.platform.version}</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>com.composum.platform</groupId>
-                <artifactId>composum-platform-commons-bundle</artifactId>
+                <artifactId>composum-platform-models-bundle</artifactId>
                 <version>${composum.platform.version}</version>
                 <scope>provided</scope>
             </dependency>
