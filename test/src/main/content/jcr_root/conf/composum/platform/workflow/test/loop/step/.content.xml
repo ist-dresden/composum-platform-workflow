@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jcr:root xmlns:sling="http://sling.apache.org/jcr/sling/1.0" xmlns:jcr="http://www.jcp.org/jcr/1.0"
+        jcr:primaryType="nt:unstructured"
+        sling:resourceType="composum/platform/workflow/task/template"
+        title="Loop Step"
+        hint="the STEP task of the loop view test"
+        dialog="composum/platform/workflow/test/loop/step">
+    <data
+            jcr:primaryType="nt:unstructured"
+            prop01="a step data property"
+            userId="${userId}"/>
+    <options
+            jcr:primaryType="nt:unstructured">
+        <approve
+                jcr:primaryType="nt:unstructured"
+                title="Approve"
+                hint="forward to stop on approve"
+                template="/conf/composum/platform/workflow/test/loop/stop">
+            <data
+                    jcr:primaryType="nt:unstructured"
+                    approveProp="approval property"
+                    userId="@{remove}"/>
+        </approve>
+        <repeat
+                jcr:primaryType="nt:unstructured"
+                title="Repeat"
+                hint="'repeat' this step"
+                template="/conf/composum/platform/workflow/test/loop/step">
+        </repeat>
+        <decline
+                jcr:primaryType="nt:unstructured"
+                title="Decline"
+                hint="'restart' on decline"
+                template="/conf/composum/platform/workflow/test/loop/start">
+        </decline>
+    </options>
+</jcr:root>

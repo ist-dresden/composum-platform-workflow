@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jcr:root xmlns:sling="http://sling.apache.org/jcr/sling/1.0" xmlns:jcr="http://www.jcp.org/jcr/1.0"
+        jcr:language="de"
+        jcr:mixinTypes="[mix:language]"
+        jcr:primaryType="sling:Folder"
+        sling:basename="composum-platform-workflow">
+
+    <general jcr:primaryType="sling:Folder">
+
+        <comment jcr:primaryType="sling:MessageEntry"
+                sling:key="Comment" sling:message="Kommentar"/>
+        <message jcr:primaryType="sling:MessageEntry"
+                sling:key="Message" sling:message="Nachricht"/>
+        <start jcr:primaryType="sling:MessageEntry"
+                sling:key="Start" sling:message="Start"/>
+        <process jcr:primaryType="sling:MessageEntry"
+                sling:key="Process" sling:message="Ausführen"/>
+        <submit jcr:primaryType="sling:MessageEntry"
+                sling:key="Submit" sling:message="Abschicken"/>
+        <workflow jcr:primaryType="sling:MessageEntry"
+                sling:key="Workflow" sling:message="Workflow"/>
+
+    </general>
+    <status jcr:primaryType="sling:Folder">
+
+        <state-pending jcr:primaryType="sling:MessageEntry"
+                sling:key="pending" sling:message="anstehend"/>
+        <state-running jcr:primaryType="sling:MessageEntry"
+                sling:key="running" sling:message="in Arbeit"/>
+        <state-finished jcr:primaryType="sling:MessageEntry"
+                sling:key="finished" sling:message="beendet"/>
+        <state-cancelled jcr:primaryType="sling:MessageEntry"
+                sling:key="cancelled" sling:message="abgebrochen"/>
+
+    </status>
+    <inbox jcr:primaryType="sling:Folder">
+
+        <date jcr:primaryType="sling:MessageEntry"
+                sling:key="Date" sling:message="Datum"/>
+        <task jcr:primaryType="sling:MessageEntry"
+                sling:key="Task" sling:message="Aufgabe"/>
+        <description jcr:primaryType="sling:MessageEntry"
+                sling:key="Description" sling:message="Beschreibung"/>
+        <assignee jcr:primaryType="sling:MessageEntry"
+                sling:key="Assignee" sling:message="Beauftragter"/>
+
+        <workflow-start-action jcr:primaryType="sling:MessageEntry"
+                sling:key="Start a Workflow" sling:message="Starten eines Workflows"/>
+        <task-run-action jcr:primaryType="sling:MessageEntry"
+                sling:key="Process the selected Task" sling:message="die gewählte Aufgabe abarbeiten"/>
+        <task-detail-action jcr:primaryType="sling:MessageEntry"
+                sling:key="Show workflow Details" sling:message="Workflow-Details der gewählten Aufgabe anzeigen"/>
+        <task-cancel-action jcr:primaryType="sling:MessageEntry"
+                sling:key="Cancel the selected Task" sling:message="die gewählte Aufgabe abbrechen"/>
+        <inbox-is-empty jcr:primaryType="sling:MessageEntry"
+                sling:key="the inbox is empty" sling:message="der Eingangskorb ist leer"/>
+
+    </inbox>
+    <dialog jcr:primaryType="sling:Folder">
+
+        <comment-hint jcr:primaryType="sling:MessageEntry"
+                sling:key="an internal comment (optional)" sling:message="ein interner Kommentar (optional)"/>
+        <workflow-select-hint jcr:primaryType="sling:MessageEntry"
+                sling:key="select the workflow to start" sling:message="Auswahl des zu startenden Workflows"/>
+        <workflow-start jcr:primaryType="sling:MessageEntry"
+                sling:key="Start Workflow" sling:message="Start Workflow"/>
+        <workflow-cancel jcr:primaryType="sling:MessageEntry"
+                sling:key="Cancel Workflow" sling:message="Workflow Abbrechen"/>
+
+    </dialog>
+    <servlet jcr:primaryType="sling:Folder">
+
+        <success jcr:primaryType="sling:MessageEntry"
+                sling:key="Success" sling:message="Erfolg"/>
+        <task-created jcr:primaryType="sling:MessageEntry"
+                sling:key="task created" sling:message="Task erzeugt"/>
+        <task-not-created jcr:primaryType="sling:MessageEntry"
+                sling:key="task not created" sling:message="Task nicht erzeugt"/>
+        <failed jcr:primaryType="sling:MessageEntry"
+                sling:key="Failed" sling:message="Fehlgeschlagen"/>
+        <failed-task-job jcr:primaryType="sling:MessageEntry"
+                sling:key="task job creation failed" sling:message="der Start des Jobs ist fehlgeschlagen"/>
+        <cancellation-success jcr:primaryType="sling:MessageEntry"
+                sling:key="task cancellation done" sling:message="Task abgebrochen"/>
+        <cancellation-failed jcr:primaryType="sling:MessageEntry"
+                sling:key="task cancellation failed" sling:message="der Abbruch ist selbst fehlgeschlagen"/>
+        <task-option jcr:primaryType="sling:MessageEntry"
+                sling:key="task option" sling:message="Task-Option"/>
+        <default-option jcr:primaryType="sling:MessageEntry"
+                sling:key="default option used" sling:message="dfie Standard-Option wurde verwendet"/>
+        <invalid-option jcr:primaryType="sling:MessageEntry"
+                sling:key="invalid option" sling:message="fehlerhafte Option"/>
+        <invalid-task jcr:primaryType="sling:MessageEntry"
+                sling:key="invalid task" sling:message="fehlerhafte Task"/>
+        <no-task-at jcr:primaryType="sling:MessageEntry"
+                sling:key="no task found at" sling:message="keine Task gefunden unter"/>
+        <can-not-forward jcr:primaryType="sling:MessageEntry"
+                sling:key="can't forward request" sling:message="Request-Weiterleitung nicht möglich"/>
+
+    </servlet>
+
+</jcr:root>

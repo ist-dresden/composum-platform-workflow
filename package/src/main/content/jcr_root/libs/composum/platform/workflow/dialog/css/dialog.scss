@@ -1,0 +1,218 @@
+@charset "UTF-8";
+
+.composum-platform-workflow {
+
+    &_dialog {
+        z-index: 1049; // bootstrap modal dialog: 1050 (e.g. path select)
+
+        .composum-form {
+
+            &_checkbox-label {
+
+                .composum-form {
+
+                    &_label-value {
+                        font-weight: bold;
+                    }
+                }
+            }
+        }
+
+        .workflow-dialog {
+
+            &_header, &_content, &_footer {
+
+                &, & table, & p {
+                    font-size: 14px;
+                }
+
+                & table {
+
+                    td {
+                        padding: 0 0 5px 25px;
+                        vertical-align: top;
+
+                        &:first-child {
+                            padding-left: 0;
+                        }
+                    }
+
+                    td.value {
+                        width: 90%;
+                        padding: 0 5px 5px 15px;
+                    }
+
+                    p:last-child {
+                        margin-bottom: 0;
+                    }
+
+                    .composum-platform-workflow {
+
+                        &_target-list {
+                            padding-left: 20px;
+                        }
+                    }
+                }
+            }
+
+            .table {
+
+                > tbody {
+
+                    > tr {
+
+                        > th, > td {
+                            padding: 0 5px !important;
+                        }
+                    }
+                }
+            }
+
+            &_task-data {
+
+                table {
+                    margin-bottom: 10px;
+                }
+            }
+
+            &_task-options {
+                border-top: 1px solid #e5e5e5;
+            }
+
+            &_button-close {
+                position: absolute;
+                top: 9px;
+                right: 14px;
+                width: 27px;
+                height: 27px;
+                border: none;
+                background: none;
+                font-family: "FontAwesome", sans-serif;
+                font-size: 22px;
+                line-height: 22px;
+                color: #aaa;
+            }
+
+            &_form {
+                margin-bottom: 0;
+
+                .widget {
+
+                    &-label {
+                        width: 100%;
+                        font-size: 14px;
+                        font-weight: normal;
+                        font-style: normal;
+                        text-decoration: none;
+
+                        .label-text {
+                            display: block;
+                            float: left;
+                            margin-left: 0;
+                            margin-right: 20px;
+                            font-weight: bold;
+                        }
+                    }
+
+                    &-hint {
+                        display: block;
+                        margin-top: 2px;
+                        font-size: 12px;
+                        text-align: right;
+                        color: #888;
+
+                        p {
+                            margin: 0;
+                            font-size: 12px;
+                        }
+                    }
+                }
+
+                .row {
+                    margin-bottom: 15px;
+
+                    &:last-child {
+                        margin-bottom: 0;
+                    }
+
+                    .form-group {
+                        margin-bottom: 0;
+                    }
+                }
+            }
+        }
+
+        .composum-platform-workflow {
+
+            &_data-table {
+                margin-bottom: 5px;
+            }
+
+            &_target-list {
+                list-style: square;
+            }
+
+            &_message-body {
+                padding-top: 15px;
+                border-top: 1px solid #e5e5e5;
+
+                p:last-child {
+                    margin-bottom: 5px;
+                }
+            }
+
+            &_option {
+                position: relative;
+                margin-bottom: 10px;
+                border-bottom: 1px solid #e5e5e5;
+                padding-bottom: 5px;
+
+                &:last-child {
+                    margin-bottom: 0;
+                    border: none;
+                    padding-bottom: 0;
+                }
+
+                &-set {
+                    margin-bottom: 10px;
+                    border-bottom: 1px solid #e5e5e5;
+                    padding-bottom: 10px;
+
+                    &:last-child {
+                        margin-bottom: 0;
+                        border: none;
+                        padding-bottom: 0;
+                    }
+                }
+
+                &-radio, &-label {
+                    cursor: pointer;
+                }
+
+                &-radio {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                }
+
+                &-label {
+                    min-width: 50%;
+                    padding-left: 30px;
+                }
+
+                &-hint {
+                    display: inline-block;
+                    margin: 0;
+                    width: 100%;
+                    font-weight: normal;
+                    font-size: 12px;
+                    color: #666;
+                }
+
+                &-form {
+                    margin: 10px 0 5px 30px;
+                }
+            }
+        }
+    }
+}

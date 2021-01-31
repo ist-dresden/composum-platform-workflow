@@ -1,0 +1,497 @@
+@charset "UTF-8";
+
+$workflow-page-background: #fff;
+$workflow-dialog-background: #eee;
+
+.composum-platform-workflow {
+
+    &_body {
+        background-color: $workflow-page-background;
+
+        .composum-platform-workflow {
+
+            &_workflow {
+
+                .composum-platform-workflow {
+
+                    &_transition-to {
+                        background-color: $workflow-page-background;
+                    }
+
+                    &_graph {
+
+                        &_task, &_transition {
+
+                            > .graph-task-bg-left, > .graph-task-bg-right,
+                            > .graph-transition-bg-left, > .graph-transition-bg-right {
+                                background-color: $workflow-page-background;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    &_dialog {
+
+        &.workflow-graph {
+
+            .modal-dialog {
+                width: 96%;
+
+                .workflow-dialog {
+
+                    &_graph-content {
+                        max-height: 80%;
+                        overflow: auto;
+                        background-color: $workflow-dialog-background;
+                    }
+                }
+
+                & .form-panel {
+
+                    .workflow-dialog {
+
+                        &_graph-content {
+                            margin: -15px -15px 10px;
+                            max-height: 60%;
+                        }
+                    }
+                }
+            }
+        }
+
+        .composum-platform-workflow {
+
+            &_workflow {
+                max-height: 70%;
+            }
+        }
+    }
+
+    &_list {
+        list-style: none;
+        padding: 0;
+
+        &.form-control {
+            height: auto;
+            max-height: 300px;
+            overflow: auto;
+        }
+
+        .composum-platform-workflow {
+
+            &_list-item {
+                position: relative;
+                margin: 10px 0;
+                padding-left: 42px;
+
+                input {
+                    position: absolute;
+                    top: 0;
+                    left: 15px;
+                }
+
+                label, .task-title, .short-desc, p {
+                    display: inline-block;
+                    width: 100%;
+                    cursor: pointer;
+                }
+
+                .short-desc {
+                    font-weight: normal;
+
+                    p {
+                        margin: 3px 0 0;
+                    }
+                }
+            }
+        }
+    }
+
+    &_workflow {
+        display: inline-table;
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+
+        &_head {
+            padding: 10px 20px 0;
+
+            .workflow {
+
+                &-title, &-hint {
+                    font-weight: bold;
+                    opacity: 0.4;
+                }
+
+                &-title {
+                    font-size: 24px;
+                }
+
+                &-hint {
+                    font-size: 12px;
+                }
+            }
+        }
+
+        .composum-platform-workflow {
+
+            &_workflow-graph {
+                position: absolute;
+                padding: 20px;
+            }
+
+            &_task {
+                padding: 10px 0;
+
+                .task-node {
+                    position: relative;
+                    min-width: 300px;
+                    max-width: 400px;
+                    margin: 0 auto;
+                    border: 2px solid #666;
+                    background: #f0f0f0;
+                    padding: 2px 5px;
+
+                    &, table, p {
+                        font-size: 12px;
+                        line-height: 16px;
+                    }
+
+                    p {
+                        margin: 3px 0;
+                    }
+
+                    table {
+                        width: auto;
+                        margin: 5px auto;
+
+                        > tbody {
+
+                            > tr {
+
+                                > th, > td {
+                                    padding: 0 5px !important;
+                                }
+
+                                > td.value {
+                                    width: inherit;
+                                    min-width: 120px;
+                                }
+
+                                p {
+                                    margin: 0;
+                                }
+                            }
+                        }
+                    }
+
+                    .task-title {
+                        margin: 3px 0 2px;
+                        font-weight: bold;
+                        line-height: 18px;
+
+                        .icon {
+                            display: inline-block;
+                            width: 20px;
+                            font-size: 14px;
+                        }
+                    }
+
+                    .task-assignee, .task-date, .task-topic, .task-template {
+                        width: 100%;
+                        font-size: 10px;
+                        line-height: 11px;
+                        color: #888;
+
+                        .icon {
+                            display: inline-block;
+                            margin-right: 4px;
+                            width: 11px;
+                            text-align: center;
+                            font-size: 10px;
+                        }
+                    }
+
+                    .task-meta {
+                        position: absolute;
+                        top: 2px;
+                        right: 2px;
+                        max-width: 250px;
+                        white-space: nowrap;
+                        overflow: hidden;
+                    }
+
+                    .task-data {
+                        overflow: hidden;
+                    }
+                }
+
+                &.current-task {
+
+                    .task-node {
+                        background: #ffffff;
+                    }
+                }
+
+                &.task-instance {
+
+                    &.task-state {
+
+                        &_pending {
+
+                            .task-node {
+                                border-color: #48f;
+                            }
+                        }
+
+                        &_running {
+
+                            .task-node {
+                                border-color: #fb4;
+                            }
+                        }
+
+                        &_finished {
+
+                            .task-node {
+                                border-color: #4c4;
+
+                                .task-topic {
+
+                                    .icon {
+                                        color: #4c4;
+                                    }
+                                }
+                            }
+                        }
+
+                        &_cancelled {
+
+                            .task-node {
+                                border-color: #c66;
+
+                                .task-topic {
+
+                                    .icon {
+                                        color: #c66;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                &.task-template {
+
+                    .task-node {
+                        border-style: dotted;
+                        border-color: #c0c0c0;
+                        color: #888;
+
+                        table {
+                            color: #888;
+                        }
+                    }
+                }
+
+                &_option {
+                    padding: 10px 0 0;
+                    text-align: center;
+
+                    .option-node {
+                        display: inline-block;
+                        position: relative;
+                        width: 240px;
+                        margin: 0 30px;
+                        border: 2px dotted #c0c0c0;
+                        background: #f0f0f0;
+                        padding: 1px 4px;
+
+                        &, table, p {
+                            font-size: 11px;
+                            line-height: 14px;
+                            color: #666;
+                        }
+
+                        p {
+                            margin: 0;
+                        }
+
+                        .task-title {
+                            font-weight: bold;
+                            line-height: 18px;
+                        }
+
+                        .task-topic {
+                            width: 100%;
+                            margin: 2px 0;
+                            font-size: 10px;
+                            line-height: 11px;
+                            color: #888;
+
+                            .icon {
+                                display: inline-block;
+                                margin-right: 4px;
+                                width: 11px;
+                                text-align: center;
+                                font-size: 10px;
+                            }
+                        }
+                    }
+
+                    &.chosen-option {
+
+                        .option-node {
+                            border-style: solid;
+                            border-color: #4c4;
+
+                            .task-topic {
+
+                                .icon {
+                                    color: #4c4;
+                                }
+                            }
+                        }
+
+                        &.current-task {
+
+                            .option-node {
+                                background-color: #ffffff;
+                            }
+                        }
+                    }
+                }
+            }
+
+            &_task, &_task_option {
+
+                &.workflow-start {
+                    padding-top: 30px;
+
+                    &:before {
+                        position: absolute;
+                        left: 50%;
+                        top: 0;
+                        margin-left: -11px;
+                        content: ' ';
+                        background: #ffffff;
+                        border: 1px solid #666;
+                        border-radius: 10px;
+                        width: 20px;
+                        height: 20px;
+                    }
+                }
+
+                &.workflow-end {
+                    padding-bottom: 30px;
+
+                    &:after {
+                        position: absolute;
+                        left: 50%;
+                        bottom: 0;
+                        margin-left: -11px;
+                        content: ' ';
+                        background: #888;
+                        border-radius: 10px;
+                        width: 20px;
+                        height: 20px;
+                    }
+                }
+            }
+
+            &_task {
+
+                &.workflow-loop {
+                    padding-top: 20px;
+                    padding-bottom: 0;
+
+                    &:after {
+                        position: absolute;
+                        left: 50%;
+                        top: 10px;
+                        margin-left: -11px;
+                        content: '\f01e';
+                        font-family: "FontAwesome", sans-serif;
+                        font-size: 14px;
+                        text-align: center;
+                        line-height: 20px;
+                        color: #888;
+                        background: #f4f4f4;
+                        border: 1px dotted #888;
+                        border-radius: 10px;
+                        width: 20px;
+                        height: 20px;
+                    }
+                }
+            }
+
+            &_transition-to {
+                position: sticky;
+                background-color: $workflow-dialog-background;
+            }
+        }
+    }
+
+    &_graph {
+
+        &_task, &_transition {
+            position: relative;
+
+            > .graph-task-bg-left, > .graph-task-bg-right,
+            > .graph-transition-bg-left, > .graph-transition-bg-right {
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                width: 50%;
+                box-sizing: content-box;
+                background-color: $workflow-dialog-background;
+            }
+
+            > .graph-task-bg-left, > .graph-transition-bg-left {
+                left: 0;
+            }
+
+            > .graph-task-bg-right, > .graph-transition-bg-right {
+                right: 0;
+                border-left: 1px solid #666;
+            }
+        }
+
+        &_task {
+            padding: 0 5px;
+        }
+
+        &_task-options {
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        &_transition {
+            display: inline-block;
+
+            > .graph-transition-bg-left, > .graph-transition-bg-right {
+                border-top: 1px solid #666;
+            }
+
+            &:first-child {
+
+                > .graph-transition-bg-left {
+                    border-top: none;
+                }
+            }
+
+            &:last-child {
+
+                > .graph-transition-bg-right {
+                    border-top: none;
+                }
+            }
+        }
+    }
+}
