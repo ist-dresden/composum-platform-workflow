@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.composum.platform</groupId>
         <artifactId>composum-platform-workflow</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>composum-platform-workflow-bundle</artifactId>
@@ -43,8 +43,9 @@
                             com.composum.platform.workflow.*
                         </Export-Package>
                         <Import-Package>
-                            com.composum.sling.core.*;version="[1.10,2.1)",
-                            com.composum.sling.nodes.*;version="[1.10,2.1)",
+                            com.composum.sling.core.*;version="[1.10,3)",
+                            com.composum.sling.clientlibs.*;version="[1.11,3)",
+                            com.composum.sling.nodes.*;version="[1.10,3)",
                             org.apache.felix.shell;resolution:=optional,
                             javax.annotation.*;version="[0,4)",
                             *
@@ -63,28 +64,36 @@
         <!-- Composum Platform -->
         <dependency>
             <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-commons-bundle</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.composum.platform</groupId>
             <artifactId>composum-platform-models-bundle</artifactId>
         </dependency>
         <dependency>
             <groupId>com.composum.platform</groupId>
-            <artifactId>composum-platform-commons-bundle</artifactId>
+            <artifactId>composum-platform-staging-bundle</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-testing-testutil</artifactId>
         </dependency>
 
         <!-- Composum Nodes (Core) -->
         <dependency>
-            <groupId>com.composum.sling.core</groupId>
-            <artifactId>composum-sling-core-commons</artifactId>
+            <groupId>com.composum.nodes</groupId>
+            <artifactId>composum-nodes-commons</artifactId>
         </dependency>
 
         <!-- EMail... -->
         <!--dependency>
             <groupId>com.google.api-client</groupId>
             <artifactId>google-api-client</artifactId>
-        </dependency>
+        </dependency-->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-email</artifactId>
-        </dependency-->
+        </dependency>
 
         <!-- Apache Sling -->
         <dependency>
@@ -110,6 +119,10 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.commons.classloader</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.commons.threads</artifactId>
         </dependency>
 
         <!-- JCR API, Jackrabbit, VLT -->
@@ -139,6 +152,10 @@
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
         </dependency>
         <dependency>
@@ -148,6 +165,10 @@
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
         </dependency>
 
         <!-- OSGi, Felix -->
@@ -186,6 +207,39 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.testing.sling-mock-oak</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.testing.sling-mock.junit4</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.testing.logging-mock</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.testing.hamcrest</artifactId>
+        </dependency>
+
+        <!-- Additional test dependencies -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient-osgi</artifactId>
+            <!-- Needed to instantiate CredentialService -->
+            <scope>test</scope>
+        </dependency>
+
+        <!-- TODO Temporary workaround for https://issues.apache.org/jira/browse/SLING-8576 .
+        Once that's fixed this should be removed. -->
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.scripting.core</artifactId>
+            <version>2.0.50</version>
+            <scope>test</scope>
         </dependency>
 
     </dependencies>

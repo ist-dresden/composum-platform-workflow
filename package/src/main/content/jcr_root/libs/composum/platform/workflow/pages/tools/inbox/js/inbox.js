@@ -55,7 +55,7 @@
 
         workflow.inboxView = core.getView('.composum-platform-workflow_inbox', workflow.PagesInboxList);
         workflow.inboxToolbar = core.getView('.composum-platform-workflow .composum-pages-tools_actions', workflow.PagesInboxToolbar);
-        workflow.$inboxParent = workflow.inboxView.$el.parent();
+        workflow.$inboxParent = workflow.inboxView ? workflow.inboxView.$el.parent() : undefined;
 
     })(CPM.platform.workflow, CPM.core);
 

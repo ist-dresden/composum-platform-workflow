@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.composum.platform</groupId>
         <artifactId>composum-platform-workflow</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>composum-platform-workflow-test-package</artifactId>
@@ -56,6 +56,12 @@
                             <root>/conf/composum/platform/workflow/test</root>
                         </filter>
                         <filter>
+                            <root>/var/composum/platform/security/credentials/composum/platform/workflow/test</root>
+                        </filter>
+                        <filter>
+                            <root>/var/composum/platform/mail/composum/platform/workflow/test/mail</root>
+                        </filter>
+                        <filter>
                             <root>/apps/composum/platform/workflow/test</root>
                         </filter>
                     </filters>
@@ -70,10 +76,25 @@
     </build>
     <dependencies>
 
-        <!-- Composum Core -->
+        <!-- Composum -->
         <dependency>
             <groupId>com.composum.sling.core</groupId>
             <artifactId>composum-sling-core-commons</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-commons-bundle</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-staging-bundle</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-workflow-bundle</artifactId>
+            <version>${project.version}</version>
         </dependency>
 
         <!-- Taglib support -->
@@ -84,6 +105,25 @@
         <dependency>
             <groupId>javax.servlet</groupId>
             <artifactId>jstl</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.tenant</artifactId>
+        </dependency>
+
+        <!-- EMail... -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-email</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>javax.jcr</groupId>
+            <artifactId>jcr</artifactId>
         </dependency>
 
     </dependencies>

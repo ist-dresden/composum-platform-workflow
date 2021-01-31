@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.composum.platform</groupId>
         <artifactId>composum-platform-workflow</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>composum-platform-workflow-package</artifactId>
@@ -118,16 +118,26 @@
                             <includes>
                                 <include>.*/composum-platform-workflow-bundle.*\.jar</include>
                                 <include>.*/org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended-workflow.config</include>
+                                <include>.*/org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended-workflow-renderer.config</include>
+                                <include>.*/commons-email.*\.jar</include>
                             </includes>
                         </filter>
                     </filters>
 
                     <embeddeds>
+
                         <embedded>
                             <groupId>${project.groupId}</groupId>
                             <artifactId>composum-platform-workflow-bundle</artifactId>
                             <target>/libs/composum/platform/install</target>
                         </embedded>
+
+                        <embedded>
+                            <groupId>org.apache.commons</groupId>
+                            <artifactId>commons-email</artifactId>
+                            <target>/libs/composum/platform/install</target>
+                        </embedded>
+
                     </embeddeds>
 
                 </configuration>
@@ -169,6 +179,16 @@
         <dependency>
             <groupId>javax.servlet</groupId>
             <artifactId>jstl</artifactId>
+        </dependency>
+
+        <!-- EMail... -->
+        <!--dependency>
+            <groupId>com.google.api-client</groupId>
+            <artifactId>google-api-client</artifactId>
+        </dependency-->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-email</artifactId>
         </dependency>
 
     </dependencies>
