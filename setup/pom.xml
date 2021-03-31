@@ -71,8 +71,8 @@
             <artifactId>composum-nodes-commons</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.composum.sling.core</groupId>
-            <artifactId>composum-sling-user-management</artifactId>
+            <groupId>com.composum.nodes</groupId>
+            <artifactId>composum-nodes-usermgr</artifactId>
         </dependency>
 
         <!-- Setup utilities -->
