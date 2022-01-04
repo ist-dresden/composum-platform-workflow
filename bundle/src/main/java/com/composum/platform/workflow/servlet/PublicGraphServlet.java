@@ -81,7 +81,7 @@ public class PublicGraphServlet extends AbstractServiceServlet {
         return operations;
     }
 
-    @Override
+    @Deprecated
     protected boolean isEnabled() {
         return true;
     }

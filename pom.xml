@@ -5,20 +5,20 @@
     <parent>
         <groupId>com.composum.platform</groupId>
         <artifactId>composum-platform</artifactId>
-        <version>1.3.1</version>
+        <version>1.4.0</version>
         <relativePath/>
     </parent>
 
     <artifactId>composum-platform-workflow</artifactId>
-    <version>1.1.0-SNAPSHOT</version>
+    <version>1.1.0</version>
     <packaging>pom</packaging>
 
     <name>Composum Platform Workflow</name>
     <description>Maven parent for Composum Platform Workflow services</description>
 
     <properties>
-        <composum.pages.version>1.2.0</composum.pages.version>
-        <composum.platform.version>1.3.1</composum.platform.version>
+        <composum.pages.version>1.3.0</composum.pages.version>
+        <composum.platform.version>1.4.0</composum.platform.version>
     </properties>
 
     <modules>
