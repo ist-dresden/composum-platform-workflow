@@ -19,14 +19,27 @@
     <properties>
         <composum.pages.version>1.3.0</composum.pages.version>
         <composum.platform.version>1.4.0</composum.platform.version>
+        <release.repository.id>istrepo</release.repository.id>
+        <release.repository.url>https://repo.ist-software.com/repository/maven-snapshots</release.repository.url>
     </properties>
 
     <modules>
         <module>bundle</module>
         <module>setup</module>
         <module>package</module>
-        <module>test</module>
     </modules>
+
+    <profiles>
+        <profile>
+            <id>installTestContent</id>
+            <modules>
+                <module>bundle</module>
+                <module>setup</module>
+                <module>package</module>
+                <module>test</module>
+            </modules>
+        </profile>
+    </profiles>
 
     <dependencyManagement>
         <dependencies>
