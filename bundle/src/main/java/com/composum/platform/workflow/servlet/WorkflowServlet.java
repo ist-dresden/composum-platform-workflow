@@ -5,6 +5,7 @@ import com.composum.platform.workflow.model.WorkflowTaskTemplate;
 import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.ResourceHandle;
+import com.composum.sling.core.Restricted;
 import com.composum.sling.core.servlet.AbstractServiceServlet;
 import com.composum.sling.core.servlet.ServletOperation;
 import com.composum.sling.core.servlet.ServletOperationSet;
@@ -47,6 +48,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static com.composum.platform.workflow.model.WorkflowTask.PP_DATA;
+import static com.composum.platform.workflow.servlet.WorkflowServlet.SERVICE_KEY;
 import static javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
 import static javax.servlet.http.HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
 import static javax.servlet.http.HttpServletResponse.SC_OK;
@@ -61,10 +63,13 @@ import static javax.servlet.http.HttpServletResponse.SC_OK;
                 ServletResolverConstants.SLING_SERVLET_METHODS + "=" + HttpConstants.METHOD_GET,
                 ServletResolverConstants.SLING_SERVLET_METHODS + "=" + HttpConstants.METHOD_POST
         })
+@Restricted(key = SERVICE_KEY)
 @SuppressWarnings("Duplicates")
 public class WorkflowServlet extends AbstractServiceServlet {
 
     private static final Logger LOG = LoggerFactory.getLogger(WorkflowServlet.class);
+
+    public static final String SERVICE_KEY = "platform/workflow/process";
 
     public static final String PARAM_TENANT_ID = "tenant.id";
     public static final String PARAM_ASSIGNEE = "wf.assignee";
@@ -102,7 +107,7 @@ public class WorkflowServlet extends AbstractServiceServlet {
         return operations;
     }
 
-    @Override
+    @Deprecated
     protected boolean isEnabled() {
         return true;
     }

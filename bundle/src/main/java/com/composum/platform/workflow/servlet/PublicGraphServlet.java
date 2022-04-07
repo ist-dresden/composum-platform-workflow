@@ -3,6 +3,7 @@ package com.composum.platform.workflow.servlet;
 import com.composum.platform.workflow.service.WorkflowService;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.ResourceHandle;
+import com.composum.sling.core.Restricted;
 import com.composum.sling.core.servlet.AbstractServiceServlet;
 import com.composum.sling.core.servlet.ServletOperation;
 import com.composum.sling.core.servlet.ServletOperationSet;
@@ -33,6 +34,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static com.composum.platform.workflow.model.WorkflowTaskTemplate.TEMPLATE_TYPE;
+import static com.composum.platform.workflow.servlet.WorkflowServlet.SERVICE_KEY;
 import static javax.servlet.http.HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
 import static javax.servlet.http.HttpServletResponse.SC_NOT_FOUND;
 
@@ -45,6 +47,7 @@ import static javax.servlet.http.HttpServletResponse.SC_NOT_FOUND;
                 ServletResolverConstants.SLING_SERVLET_PATHS + "=/bin/public/workflow",
                 ServletResolverConstants.SLING_SERVLET_METHODS + "=" + HttpConstants.METHOD_GET
         })
+@Restricted(key = SERVICE_KEY)
 public class PublicGraphServlet extends AbstractServiceServlet {
 
     private static final Logger LOG = LoggerFactory.getLogger(PublicGraphServlet.class);
@@ -81,7 +84,7 @@ public class PublicGraphServlet extends AbstractServiceServlet {
         return operations;
     }
 
-    @Override
+    @Deprecated
     protected boolean isEnabled() {
         return true;
     }
