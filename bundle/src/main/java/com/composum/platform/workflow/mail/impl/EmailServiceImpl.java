@@ -328,7 +328,8 @@ public class EmailServiceImpl implements EmailService, Runnable {
                 shutdownExecutorService();
                 locked = lock.writeLock().tryLock(1, SECONDS);
             } catch (InterruptedException e) {
-                // ignore
+                // Keep interruption flag, but the other actions are short we just continue.
+                Thread.currentThread().interrupt();
             }
             try {
                 reservedQueueEntries.clear();

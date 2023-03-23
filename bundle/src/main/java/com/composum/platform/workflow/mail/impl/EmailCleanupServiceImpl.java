@@ -58,6 +58,8 @@ public class EmailCleanupServiceImpl implements Runnable, EmailCleanupService {
             }
         } catch (InterruptedException e) {
             LOG.error("" + e, e);
+            // can't rethrow; since interruption flag is cleared:
+            Thread.currentThread().interrupt();
         } finally {
             if (locked) {
                 lock.writeLock().unlock();

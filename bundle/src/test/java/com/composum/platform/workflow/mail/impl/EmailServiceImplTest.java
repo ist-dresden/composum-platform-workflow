@@ -15,7 +15,6 @@ import com.composum.sling.platform.testing.testutil.ErrorCollectorAlwaysPrinting
 import com.composum.sling.platform.testing.testutil.JcrTestUtils;
 import com.composum.sling.platform.testing.testutil.junitcategory.SlowTest;
 import com.composum.sling.platform.testing.testutil.junitcategory.TimingSensitive;
-import com.google.common.base.Function;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.mail.Email;
 import org.apache.commons.mail.SimpleEmail;
@@ -51,6 +50,7 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Function;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hamcrest.Matchers.*;
