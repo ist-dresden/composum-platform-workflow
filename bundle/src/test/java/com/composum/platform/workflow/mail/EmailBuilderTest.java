@@ -21,6 +21,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.when;
@@ -40,16 +41,19 @@ public class EmailBuilderTest {
 
     protected PlaceholderService placeholderService;
 
+    protected BeanContext.Map beanContext = new BeanContext.Map();
+
     @Before
     public void setUp() {
         placeholderService = new PlaceholderServiceImpl();
         MockitoAnnotations.initMocks(this);
         when(templateResource.getValueMap()).thenReturn(templateMap);
+        beanContext.setAttribute(BeanContext.ATTR_LOCALE, Locale.GERMANY, BeanContext.Scope.application);
     }
 
     @Test
     public void simpleEmail() throws Exception {
-        EmailBuilder builder = new EmailBuilder(new BeanContext.Map(), null);
+        EmailBuilder builder = new EmailBuilder(beanContext, null);
         builder.setFrom("from@somewhere.net");
         builder.setTo("to1@example.net", "to2@example.net");
         builder.setCC("cc@example.net");
@@ -78,7 +82,7 @@ public class EmailBuilderTest {
 
     @Test
     public void simpleEmailCombiningTest() throws Exception {
-        EmailBuilder builder = new EmailBuilder(new BeanContext.Map(), templateResource);
+        EmailBuilder builder = new EmailBuilder(beanContext, templateResource);
         templateMap.put("from", "from@example.net");
         templateMap.put("subject", "overridden subject ${X}");
         templateMap.put("body", "The body ${Y;%+10.4f}"); // format see https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/Formatter.html
@@ -115,7 +119,7 @@ public class EmailBuilderTest {
 
     @Test
     public void htmlEmail() throws Exception {
-        EmailBuilder builder = new EmailBuilder(new BeanContext.Map(), null);
+        EmailBuilder builder = new EmailBuilder(beanContext, null);
         builder.setFrom("from@somewhere.net");
         builder.setTo("to@example.net");
         builder.setSubject("Hallo ${name}!");
