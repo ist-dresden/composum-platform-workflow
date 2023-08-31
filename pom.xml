@@ -20,6 +20,14 @@
         <composum.platform.version>1.7.0</composum.platform.version>
     </properties>
 
+    <url>https://github.com/ist-dresden/composum-platform-workflow</url>
+    <scm>
+        <connection>scm:git:https://github.com/ist-dresden/composum-platform-workflow.git</connection>
+        <developerConnection>scm:git:https://github.com/ist-dresden/composum-platform-workflow.git</developerConnection>
+        <url>https://github.com/ist-dresden/composum-platform-workflow.git</url>
+        <tag>HEAD</tag>
+    </scm>
+
     <modules>
         <module>bundle</module>
         <module>setup</module>
