@@ -110,6 +110,9 @@
                             <root>/conf/composum/workflow/everyone/decline</root>
                         </filter>
                         <filter>
+                            <root>/oak:index/mqueueLastModified</root>
+                        </filter>
+                        <filter>
                             <root>/libs/composum/platform/workflow</root>
                         </filter>
                         <filter>
