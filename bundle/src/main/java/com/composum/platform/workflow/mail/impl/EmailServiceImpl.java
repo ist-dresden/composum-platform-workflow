@@ -7,7 +7,7 @@ import com.composum.platform.workflow.mail.*;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.platform.staging.query.Query;
 import com.composum.sling.platform.staging.query.QueryBuilder;
-import com.google.common.collect.MapMaker;
+import org.apache.jackrabbit.guava.common.collect.MapMaker;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.StringUtils;
